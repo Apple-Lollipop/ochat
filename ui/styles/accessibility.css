@@ -1,0 +1,82 @@
+/* Preferences override presentation without altering communication or consent. */
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,a:focus-visible,:focus-visible  {
+  outline:2px solid var(--accent);
+  outline-offset:3px;
+}
+button:disabled  {
+  cursor:default;
+}
+button[data-busy=true]  {
+  cursor:progress;
+}
+[hidden]  {
+  display:none!important;
+}
+@media(prefers-reduced-motion:reduce)  {
+  *,*::before,*::after  {
+    animation:none!important;
+    transition:none!important;
+    scroll-behavior:auto!important;
+  }
+  button:active:not(:disabled)  {
+    transform:none;
+  }
+}
+@media(prefers-reduced-transparency:reduce),(prefers-contrast:more)  {
+  .app-header,.conversation-tabs,.topbar,.composer,.voice-bar,dialog,.mention-picker  {
+    background:var(--panel)!important;
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+  }
+  dialog::backdrop  {
+    backdrop-filter:none;
+    -webkit-backdrop-filter:none;
+  }
+  .message-toolbar  {
+    opacity:1!important;
+  }
+}
+@media(prefers-contrast:more)  {
+  :root  {
+    --line:var(--muted);
+    --hairline:var(--muted);
+  }
+  button,input,textarea,select,.file-card,.link-preview,.reaction-chip  {
+    border-width:2px;
+  }
+}
+@media(forced-colors:active)  {
+  :root  {
+    --bg:Canvas;
+    --panel:Canvas;
+    --sidebar:Canvas;
+    --field:Canvas;
+    --text:CanvasText;
+    --muted:CanvasText;
+    --line:CanvasText;
+    --hairline:CanvasText;
+    --accent:Highlight!important;
+    --accent-hover:Highlight!important;
+    --accent-foreground:HighlightText!important;
+    --selection:Canvas!important;
+    --focus:Highlight!important;
+    --danger:LinkText;
+  }
+  .app-header,.conversation-tabs,.topbar,.composer,.voice-bar,dialog  {
+    background:Canvas!important;
+    backdrop-filter:none!important;
+    box-shadow:none!important;
+  }
+  button,input,textarea,select,.file-card,.link-preview,.reaction-chip  {
+    border:1px solid ButtonText;
+  }
+  :focus-visible  {
+    outline-color:Highlight;
+  }
+  .message-toolbar  {
+    opacity:1;
+  }
+  .presence-dot,.speaking-dot  {
+    forced-color-adjust:none;
+  }
+}

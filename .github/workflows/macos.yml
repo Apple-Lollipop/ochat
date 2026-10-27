@@ -1,0 +1,71 @@
+name: macOS DMG
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-dmg-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  macos:
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      APPLE_SIGNING_IDENTITY: '-'
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          components: rustfmt
+      - name: Check native build tools
+        run: |
+          xcode-select -p
+          if ! command -v cmake >/dev/null; then brew install cmake; fi
+          cmake --version
+          rustc --version
+          df -h .
+      - run: npm ci
+      - name: Check interface and formatting
+        run: |
+          npm test
+          cargo fmt --all -- --check
+      - name: Build universal application and DMG
+        run: |
+          npm run tauri -- build --target universal-apple-darwin --bundles app,dmg -- --locked 2>&1 | tee macos-build.log
+      - name: Verify architectures and local signature
+        run: |
+          app="target/universal-apple-darwin/release/bundle/macos/Ochat.app"
+          test -d "$app"
+          lipo -verify_arch x86_64 arm64 "$app/Contents/MacOS/ochat"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          hdiutil verify target/universal-apple-darwin/release/bundle/dmg/*.dmg
+      - name: Collect DMG and checksums
+        run: node scripts/release/collect.cjs macos
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ochat-macOS-universal
+          path: releases/macOS/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+      - name: Save build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ochat-macOS-build-log
+          path: macos-build.log
+          if-no-files-found: ignore
+          retention-days: 7

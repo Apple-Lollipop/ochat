@@ -1,0 +1,65 @@
+/* Finite feedback only; voice activity and unread attention never pulse. */
+button,input,textarea,select,a  {
+  transition:background-color var(--duration-fast) var(--ease),border-color var(--duration-fast) var(--ease),box-shadow var(--duration-fast) var(--ease),color var(--duration-fast) var(--ease);
+}
+button:active:not(:disabled)  {
+  transform:translateY(1px);
+}
+dialog[open]:not(.navigation-docked):not(.docked-details)  {
+  animation:panel-arrive var(--duration-normal) var(--ease);
+}
+.message.is-new  {
+  animation:message-arrive 180ms var(--ease);
+}
+.timeline.conversation-arrive  {
+  animation:conversation-arrive 160ms var(--ease);
+}
+.toast:not([hidden])  {
+  animation:notice-arrive 180ms var(--ease);
+}
+.conversation-tab-entry.needs-attention,.conversation-tab-entry.unread-pulse, .conversation-tab.attention,.conversation-tab.pulse,.speaking-dot,.is-speaking  {
+  animation:none!important;
+}
+@keyframes message-arrive  {
+  from  {
+    opacity:0;
+    transform:translateY(5px);
+  }
+  to  {
+    opacity:1;
+    transform:none;
+  }
+}
+@keyframes conversation-arrive  {
+  from  {
+    opacity:.5;
+    transform:translateY(3px);
+  }
+  to  {
+    opacity:1;
+    transform:none;
+  }
+}
+@keyframes panel-arrive  {
+  from  {
+    opacity:0;
+    translate:0 5px;
+  }
+  to  {
+    opacity:1;
+    translate:0 0;
+  }
+}
+@keyframes notice-arrive  {
+  from  {
+    opacity:0;
+    translate:0 4px;
+  }
+  to  {
+    opacity:1;
+    translate:0 0;
+  }
+}
+
+@media(max-width:899px) { .navigation-dialog[open] { animation:panel-side-arrive var(--duration-normal) var(--ease); } }
+@keyframes panel-side-arrive { from { opacity:0; translate:-8px 0; } to { opacity:1; translate:0 0; } }

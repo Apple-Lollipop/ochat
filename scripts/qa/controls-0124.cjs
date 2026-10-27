@@ -1,0 +1,40 @@
+/* Layout and native-control interactions using isolated synthetic IPC. */
+const {fixture,server}=require('./visual.cjs');
+const {chromium}=require('playwright');
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const output=path.resolve(__dirname,'../../releases/reports/UI-0.12.4');
+function controlsFixture(){
+ const original=window.__TAURI__.core.invoke;
+ window.__TAURI__.core.Channel=class {onmessage=()=>{};};
+ const picture=(w,h)=>{const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const c=canvas.getContext('2d');c.fillStyle='#257e86';c.fillRect(0,0,w,h);c.fillStyle='#e4ac69';c.fillRect(w*.15,h*.15,w*.35,h*.6);c.fillStyle='#384254';c.beginPath();c.arc(w*.7,h*.5,h*.25,0,7);c.fill();return canvas.toDataURL('image/png');};
+ window.__TAURI__.core.invoke=async(c,a)=>{
+  if(c==='message_image')return new Promise(resolve=>{queueMicrotask(()=>a.onPreview?.onmessage({data:picture(48,36),width:640,height:480}));window.__qaResolveImage=()=>resolve(picture(640,480));});
+  if(c==='room_management')return {owner:'a'.repeat(64),policy:{roles:{['b'.repeat(64)]:'administrator'},permissions:{administrator:{invitations:true,channels:true,calls:true,pins:true}}},permissions:{invitations:true},members:[{id:'b'.repeat(64),name:'Maya'}],invitations:[]};
+  return original(c,a);
+ };
+}
+(async()=>{
+ fs.mkdirSync(output,{recursive:true});await new Promise(r=>server.listen(0,'127.0.0.1',r));const browser=await chromium.launch({headless:true,channel:'msedge'}),checks=[];
+ try{for(const theme of ['light','dark'])for(const width of [480,780,1180,1600]){
+  const height=width===480?520:800,page=await browser.newPage({viewport:{width,height},colorScheme:theme,reducedMotion:'reduce'}),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(fixture,theme);await page.addInitScript(controlsFixture);
+  await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForFunction(()=>document.body.dataset.qaReady==='true');
+  if(!await page.locator('#settings-button').isVisible())await page.locator('#navigation-toggle').click();await page.locator('#settings-button').click();
+  for(const tab of ['appearance','audio','notifications','account','privacy']){
+   await page.locator(`[data-settings-tab="${tab}"]`).click();await page.locator('.settings-content').evaluate(n=>n.scrollTop=0);
+   const dialog=page.locator('#settings-dialog');assert.ok(await page.locator('#settings-save').isVisible());assert.ok(await dialog.evaluate(n=>n.scrollWidth<=n.clientWidth+1));
+   await page.screenshot({path:path.join(output,`${theme}-${width}-settings-${tab}.png`)});
+  }
+  await page.locator('#settings-cancel').click();await page.evaluate(()=>document.getElementById('room-access-button').click());await page.locator('#room-management').waitFor();assert.ok(await page.locator('#room-management').evaluate(n=>n.scrollWidth<=n.clientWidth+1));await page.screenshot({path:path.join(output,`${theme}-${width}-room-settings.png`)});await page.locator('#room-management .workspace-heading button').click();
+  await page.evaluate(async()=>{const id=state.channels.find(c=>c.kind==='voice').id;await window.__TAURI__.core.invoke('join_voice_channel',{room:state.room.id,channel:id});state={...state,voice:true,voice_channel:id,voice_session:'qa-active'};roomSnapshots.set(state.room.id,state);render();});
+  if(!await page.locator('#mute-button').isVisible())await page.locator('#navigation-toggle').click();await page.screenshot({path:path.join(output,`${theme}-${width}-voice-actions.png`)});
+  for(const id of ['voice-diagnostics-button','mute-button','deafen-button','camera-button','screen-button','stop-voice']){assert.equal(await page.locator('#'+id).isVisible(),true,id);assert.ok(await page.locator('#'+id).evaluate(n=>getComputedStyle(n,'::before').maskImage!=='none'),id+' icon');}
+  await page.evaluate(()=>{if(innerWidth<900)document.getElementById('navigation-dialog').close();});
+  await page.evaluate(async()=>{const canvas=document.createElement('canvas');canvas.width=960;canvas.height=540;const c=canvas.getContext('2d');c.fillStyle='#172431';c.fillRect(0,0,960,540);c.fillStyle='#263c50';c.fillRect(30,30,180,480);c.fillStyle='#eef3f7';c.font='32px sans-serif';c.fillText('Project notes',250,90);c.font='22px sans-serif';c.fillText('The next release is ready to review.',250,145);c.fillStyle='#6e9fbe';for(let i=0;i<4;i++)c.fillRect(250,190+i*60,570-i*50,16);window.__qaStreamData=canvas.toDataURL('image/jpeg').split(',')[1];window.__qaScreen={session:'qa-share',media:state.voice_channel,connection:'join-maya',kind:'screen',profile:{codec:'jpeg',width:960,height:540,fps:10}};await handleEvent({type:'visual_available',room:state.room.id,peer:'b'.repeat(64),control:window.__qaScreen});});
+  await page.locator('.visual-watch').click();await page.evaluate(async()=>{await handleEvent({type:'visual_packet',room:state.room.id,peer:'b'.repeat(64),control:window.__qaScreen,sequence:1,timestamp:0,key:true,data:window.__qaStreamData});});await page.locator('.visual-card .video-image').waitFor();await page.locator('.visual-focus').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`${theme}-${width}-screen-focus.png`)});await page.locator('.visual-focus').click();assert.equal(await page.locator('#visual-grid').evaluate(n=>n.classList.contains('has-focus')),false);await page.locator('.visual-focus').click();await page.evaluate(()=>{const channel=state.voice_channel;document.querySelector('#room-channels [data-channel="'+channel+'"] .channel-select').click();});await page.waitForFunction(()=>document.body.dataset.voiceView==='true');await page.screenshot({path:path.join(output,`${theme}-${width}-voice-screen-stage.png`)});await page.evaluate(()=>document.querySelector('#voice-channel-view > button').click());await page.waitForFunction(()=>document.body.dataset.voiceView==='false');await page.locator('.visual-watch').click();
+
+  await page.evaluate(async()=>{await handleEvent({type:'message',room:state.room.id,channel:state.text_channel,id:'blur-preview',peer:'b'.repeat(64),name:'Maya',text:'ochat-image:'+'d'.repeat(64),timestamp:Date.now(),emojis:[]});});
+  await page.locator('.message-image-media.has-preview').waitFor();const blur=page.locator('.message-image-blur');assert.match(await blur.evaluate(n=>getComputedStyle(n).filter),/blur/);await page.screenshot({path:path.join(output,`${theme}-${width}-blur-preview.png`)});await page.evaluate(()=>window.__qaResolveImage());await page.locator('.message-image-media.ready').waitFor();await page.screenshot({path:path.join(output,`${theme}-${width}-image-ready.png`)});
+  assert.deepEqual(errors,[]);checks.push({theme,width,height,settings:true,roomSettings:true,voiceIcons:true,blurPreview:true,ready:true});await page.close();
+ }}finally{await browser.close();await new Promise(r=>server.close(r));}
+ fs.writeFileSync(path.join(output,'controls.json'),JSON.stringify({engine:'Edge headless',nativeIPC:'fixture',checks},null,2));console.log(checks.length+' settings/room/voice/blur layouts passed');
+})().catch(e=>{console.error(e);process.exitCode=1;});

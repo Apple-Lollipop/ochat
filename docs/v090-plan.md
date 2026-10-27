@@ -1,0 +1,9 @@
+# Ochat 0.9 media and navigation
+
+- Separate, persisted camera/screen presets: 360p, 540p, 720p or 1080p; 5/10/15/24/30/60 fps; economy/balanced/detail bitrate. Apply while sharing without asking for a new source. Source/hardware/network availability can lower actual frame rate.
+- Negotiate visual revision 2 and VP8 encoding/decoding with WebCodecs. Keep bounded independent encrypted Iroh streams, identifiers and consent checks. Retain JPEG compatibility with 0.8. Do not send new media kinds to older clients.
+- Share Windows system sound explicitly, using process-loopback capture excluding Ochat and its child processes to avoid feeding remote voices back. No extra microphone. Independent bounded PCM 48 kHz stereo packets, mixed natively with participant/output volume, deafen and the actual acoustic echo reference. Stop with screen sharing, lock, disconnect or hang-up. Report unsupported OS/capture failure without claiming audio is shared.
+- Each camera/screen tile can open a resizable, optionally always-on-top native viewer. Only selected ephemeral frames go to it; close/clear on lock or media end. Keep fullscreen and main-window controls available.
+- Rail sections explicitly distinguish Private messages from Rooms, with different shapes/icons and category labels. Preserve pinned order, unread counts, voice badges, drag ordering and every conversation.
+- Fix shortcut recording: actual keyboard tests, window capture, fallback for missing event.code, focus the recording field, support F1–F24 alone and modifiers, manual text entry and actionable validation. Keep global registration/rollback and privacy protections.
+- Test codecs, consent/stale packets, sound exclusion/lifecycle/mixing, presets/backup persistence, popup isolation/cleanup, navigation and keyboard interactions. Distinguish synthetic/browser/native tests from physical two-PC, acoustic and Windows source-picker verification. Windows EXE only, no installer or Linux/macOS builds.

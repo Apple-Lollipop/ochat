@@ -1,0 +1,97 @@
+.meme-tabs{display:flex;gap:8px;margin-bottom:12px}.meme-tabs [aria-selected=true]{background:var(--accent);color:var(--accent-ink)}.meme-tile{position:relative;min-width:0}.meme-tile .risibank-item{width:100%;height:100%}.meme-favorite{position:absolute;right:4px;top:4px;border:1px solid #ffffff40;background:#202127dd;color:#fff;border-radius:50%;width:32px;height:32px;font-size:22px;cursor:pointer}.meme-favorite[aria-pressed=true]{color:#FFD159}
+.unicode-emoji{font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;font-size:27px;min-height:44px;min-width:44px}.custom-color-row{display:flex;gap:12px;align-items:center}.custom-color-row input[type=color]{width:80px;height:38px}.custom-color-row input[type=checkbox]{width:18px}.personalization-fields,.profile-bio-settings,.privacy-settings{display:grid;gap:12px;margin-top:22px}.profile-bio-settings textarea{resize:vertical;min-height:90px}.personalization-field{display:grid;gap:8px}.personalization-field>span{font-size:13px;font-weight:600}.profile-bio{white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.6;max-height:230px;overflow:auto}
+.discord-shell #members .member-profile{font-size:16px;min-height:58px}.discord-shell #members .avatar{width:44px;height:44px;min-width:44px;font-size:16px}.discord-shell #members .member-name{font-size:16px}.discord-shell #details-dialog.profile-overlay{position:fixed;inset:0;margin:auto;width:min(480px,calc(100vw - 24px));height:auto;max-height:calc(100dvh - 32px);border:1px solid var(--hairline);border-radius:18px;padding:24px;box-shadow:0 24px 80px #0006;overflow:auto;z-index:100}.profile-overlay #details-overview,.profile-overlay #participants-section,.profile-overlay #profile-back{display:none!important}.profile-overlay #peer-card{display:flex;flex-direction:column;gap:12px}.profile-overlay #peer-avatar{width:100px;height:100px;font-size:30px;cursor:zoom-in;align-self:center}.profile-overlay #peer-name{font-size:24px;text-align:center}.profile-overlay #peer-avatar .profile-photo{border-radius:inherit}#profile-photo-dialog{width:min(840px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:16px}#photo-viewer-image{display:block;max-width:100%;max-height:calc(100dvh - 130px);object-fit:contain;margin:auto}.inline-image img{display:block;max-width:min(480px,100%);max-height:400px;width:auto;height:auto;border-radius:10px;object-fit:contain;cursor:zoom-in}.inline-image{display:flex;flex-direction:column;gap:8px;min-height:60px;overflow:hidden}
+#rail-home{position:relative}.private-unread-count{position:absolute;right:-3px;bottom:-3px;background:#ed4245;color:white;border:3px solid var(--rail);border-radius:20px;min-width:22px;height:22px;display:grid;place-items:center;font-size:11px;font-weight:750;padding:0 4px}.private-unread-count[hidden]{display:none}
+html{--window-opacity:1}.discord-shell .app-header{background:var(--canvas-gradient,color-mix(in srgb,var(--custom-panel,var(--panel)) calc(var(--window-opacity)*100%),transparent))}html .discord-shell{background:transparent}body.discord-shell>main{background:var(--canvas-gradient,color-mix(in srgb,var(--custom-bg,var(--bg)) calc(var(--window-opacity)*100%),transparent))}.discord-shell #conversation-panel{background:var(--custom-bg,var(--bg));color:var(--custom-bg-text,var(--text))}.discord-shell .sidebar,.discord-shell #details-dialog,.discord-shell #navigation-dialog{background:color-mix(in srgb,var(--custom-panel,var(--panel)) calc(var(--window-opacity)*100%),transparent);color:var(--custom-panel-text,var(--text))}.discord-shell #timeline .bubble{color:var(--custom-bg-text,var(--text))}.discord-shell #timeline{background:var(--custom-bg,var(--bg));color:var(--custom-bg-text,var(--text))}.visual-surface{aspect-ratio:16/9;height:auto;min-height:140px}.visual-card[data-kind=camera] .visual-surface{aspect-ratio:4/3}.visual-card.local-screen .visual-surface{max-height:200px}.visual-card.local-camera video{transform:scaleX(-1)}
+@media(prefers-reduced-transparency:reduce){:root{--window-opacity:1!important}}@media(prefers-contrast:more){:root{--window-opacity:1!important}}@media(max-width:780px){.inline-image img{max-height:280px}.visual-surface{min-height:120px}.discord-shell #details-dialog.profile-overlay{padding:18px}}
+#photo-viewer-image{width:min(640px,100%);height:auto} .privacy-settings{margin-top:0} .personalization-fields input[type=range]{max-width:100%}
+.discord-shell #details-dialog.profile-overlay{max-width:min(480px,calc(100vw - 24px));min-width:0;flex:none;height:fit-content}
+.discord-shell #details-dialog.profile-overlay #peer-avatar{width:100px;height:100px;min-width:100px;font-size:30px;margin:0 auto 4px}
+.discord-shell #details-dialog.profile-overlay #peer-card{gap:12px}
+.discord-shell #details-dialog.profile-overlay #peer-bio{font-size:15px;line-height:1.6;margin:0}
+.discord-shell #details-dialog.profile-overlay .secondary{font-size:13px;min-height:36px}
+.discord-shell #details-dialog #members .avatar{width:44px;height:44px;min-width:44px;font-size:16px}
+.discord-shell #details-dialog #members .member-profile{font-size:16px;min-height:58px}
+.discord-shell #details-dialog #members .member-name{font-size:16px}
+
+html{background:transparent}.discord-shell #navigation-dialog{background:color-mix(in srgb,var(--custom-panel,var(--panel)) calc(var(--window-opacity)*100%),transparent)}.discord-shell #conversation-rail{background:color-mix(in srgb,var(--custom-panel,var(--rail)) calc(var(--window-opacity)*100%),transparent);color:var(--custom-panel-text,var(--text))}
+
+.discord-shell dialog{background:var(--custom-panel,var(--panel));color:var(--custom-panel-text,var(--text))}.discord-shell .app-header .app-mark{color:var(--custom-bg-text,var(--muted))}.discord-shell .app-header .window-controls{color:var(--gradient-end-text,var(--custom-bg-text,var(--text)))}
+
+/* Inline media stays compact; the photo viewer keeps the original available. */
+.discord-shell .inline-image{min-width:0;max-width:100%;align-items:flex-start}
+.discord-shell .inline-image img{max-width:min(var(--chat-image-size,240px),100%);max-height:var(--chat-image-size,240px);width:auto;height:auto;object-fit:contain}
+
+/* Participants belong beneath their voice channel; the dock is controls only. */
+.discord-shell #voice-bar #voice-roster,
+.discord-shell #voice-bar #voice-hint {display:none}
+.discord-shell #voice-bar .visual-controls {grid-column:1;grid-row:3;display:flex;flex-wrap:wrap;gap:6px}
+.discord-shell #voice-bar {max-height:none;overflow:visible}
+.discord-shell #voice-bar #voice-label {flex:1;min-width:0;max-width:none;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:1.35}
+.discord-shell .channel-people {padding:4px 6px 8px 24px}
+.discord-shell .channel-person {gap:9px;min-height:38px;padding:4px;text-align:left}
+.discord-shell .channel-person .avatar {width:28px;height:28px;min-width:28px}
+.discord-shell .channel-person-name {flex:1;min-width:0;white-space:normal;overflow-wrap:anywhere;line-height:1.35}
+.discord-shell .channel-person .speaking-dot {margin-left:auto;flex-shrink:0}
+.discord-shell #details-dialog #members .member-name,
+.discord-shell #details-dialog #members .member-name>span:first-child {max-width:none;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;word-break:normal}
+.discord-shell #details-dialog #members .member-name {display:flex;align-items:center;gap:4px}
+.discord-shell #details-dialog #members .member-name>span:first-child {min-width:0}
+.discord-shell #details-dialog #members .member-info {flex:1;min-width:0;text-align:left}
+.discord-shell #details-dialog #members .member-profile {align-items:flex-start}
+.discord-shell #details-dialog #members .member {display:grid;grid-template-columns:44px minmax(0,1fr);gap:4px 9px}
+.discord-shell #details-dialog #members .member-profile {grid-column:1/-1;width:100%}
+.discord-shell #details-dialog #members .friend-action {grid-column:2;margin:0;max-width:none;justify-self:start}
+.discord-shell #details-dialog #members .speech-slot {flex-shrink:0}
+.discord-shell #details-dialog #peer-name {white-space:normal;overflow-wrap:anywhere}
+
+/* Opacity belongs to workspace surfaces, never to top-layer content. */
+body.discord-shell>main,.discord-shell .workspace {background:transparent}
+.discord-shell #conversation-panel {background:var(--canvas-gradient,color-mix(in srgb,var(--custom-bg,var(--bg)) calc(var(--window-opacity)*100%),transparent))}
+.discord-shell #timeline {background:transparent}
+.discord-shell #navigation-dialog {background:color-mix(in srgb,var(--custom-panel,var(--panel)) calc(var(--window-opacity)*100%),transparent)}
+.discord-shell #sidebar-footer,.discord-shell #voice-bar,.discord-shell #account-controls {background:transparent;color:var(--custom-panel-text,var(--text))}
+.discord-shell dialog:not(#navigation-dialog),
+.discord-shell #details-dialog,
+.discord-shell #details-dialog.profile-overlay {background:var(--custom-panel,var(--panel));opacity:1;backdrop-filter:none;color:var(--custom-panel-text,var(--text))}
+.discord-shell dialog::backdrop {background:#0006;backdrop-filter:blur(4px)}
+.discord-shell #voice-bar button {color:inherit}
+.discord-shell #voice-bar #stop-voice {color:var(--danger)}
+.discord-shell .message .bubble,.discord-shell .message.own .bubble,.discord-shell .message.unread .bubble {font-size:var(--chat-font-size,15px)}
+.discord-shell .message,.discord-shell .message.own {margin-top:var(--chat-spacing,8px);margin-bottom:var(--chat-spacing,8px)}
+.discord-shell .message.continuation {margin-top:0}
+.discord-shell :is(.primary,.secondary,.text-button,.icon-button,input,textarea,select,.channel-select,.channel-person) {border-radius:var(--control-radius,10px)}
+.personalization-fields .custom-color-row input[type=range] {flex:1;min-width:0}
+.personalization-fields output {min-width:48px;font-variant-numeric:tabular-nums}
+
+/* Local loading animation: no external GIF request or tracking. */
+.meme-tile .risibank-item {position:relative;min-height:150px}
+.meme-tile .risibank-item.is-loading {background:var(--field)}
+.meme-tile .risibank-item.is-loading img {visibility:hidden}
+.meme-tile .risibank-item .meme-loading {position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;padding:12px;background:transparent;color:var(--muted);font-size:12px}
+.meme-loading::before,#risibank-grid[aria-busy=true]:empty::before {content:'';display:block;width:24px;height:24px;border:3px solid var(--hairline);border-top-color:var(--accent);border-radius:50%;animation:meme-loading-spin .8s linear infinite}
+#risibank-grid[aria-busy=true]:empty {min-height:160px;display:grid;place-items:center}
+.meme-tile .risibank-item .meme-unavailable {display:grid;place-items:center;min-height:110px;background:var(--field);color:var(--muted);font-size:12px;white-space:normal}
+@keyframes meme-loading-spin {to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce) {.meme-loading::before,#risibank-grid[aria-busy=true]:empty::before{animation:none}}
+@media(max-width:899px) {
+ .discord-shell #navigation-dialog[open] {background:var(--custom-panel,var(--panel))}
+ .discord-shell #voice-bar {background:color-mix(in srgb,var(--custom-panel,var(--panel)) calc(var(--window-opacity)*100%),transparent)}
+ .discord-shell #voice-bar .visual-controls {grid-column:1/-1;grid-row:auto}
+}
+.connection-route-settings{margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:12px;min-width:0}
+.connection-route-settings legend{padding:0 6px;font-size:14px;font-weight:600;color:var(--text)}
+.connection-route-settings .personalization-field{display:flex;flex-direction:row;align-items:center;gap:10px;margin:4px 0 12px}
+.connection-route-settings .personalization-field span{min-width:0;font-size:14px;line-height:1.4}
+.connection-route-settings input[type="checkbox"]{order:-1;flex:0 0 18px;width:18px;min-width:18px;height:18px;padding:0;margin:0;accent-color:var(--accent)}
+.connection-route-settings .field-hint{margin:0;line-height:1.6}
+.inline-image .image-favorite{display:block;width:max-content;max-width:100%;margin:5px 0 0;padding:5px 8px;font-size:12px;line-height:1.3}
+.message-image-media{position:relative;display:grid;place-items:center;min-height:80px;width:min(var(--chat-image-size,240px),100%);aspect-ratio:4/3;max-height:var(--inline-media-height,260px);overflow:hidden;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.message-image-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;min-height:100px;padding:12px;box-sizing:border-box;width:100%;font-size:12px;line-height:1.4;text-align:center;color:var(--muted);background:linear-gradient(110deg,transparent 15%,#8881 45%,transparent 75%)}
+.message-image-placeholder[hidden]{display:none}.message-image-spinner{height:22px;width:22px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:message-image-spin .8s linear infinite}
+.message-image-spinner[hidden]{display:none}.message-image-media>img{grid-area:1/1;opacity:0;transition:opacity .16s ease-out}.message-image-media.ready{background:transparent;border-color:transparent;min-height:0;width:auto;max-width:100%}.message-image-media.ready>img{opacity:1}
+.discord-shell .inline-image .message-image-media>img{max-height:min(var(--chat-image-size,240px),var(--inline-media-height,260px));max-width:min(var(--chat-image-size,240px),100%)}
+@keyframes message-image-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.message-image-spinner{animation:none}.message-image-media>img{transition:none}}
+.message-image-placeholder{grid-area:1/1;z-index:1;min-height:min(100px,var(--inline-media-height,260px))}.message-image-media:not(.ready)>img{position:absolute;max-width:100%;inset:0}
+.message-image-media.failed{aspect-ratio:auto;max-height:none}.message-image-media.failed .message-image-placeholder{min-height:100px}

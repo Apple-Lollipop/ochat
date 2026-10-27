@@ -1,0 +1,61 @@
+@import url("styles/studio.css");
+@import url("styles/motion.css");
+@import url("styles/discord-tokens.css");
+@import url("styles/discord-shell.css");
+@import url("styles/discord-panels.css");
+@import url("styles/discord-messages.css");
+@import url("styles/discord-fonts.css");
+@import url("styles/accessibility.css");
+
+/* Room channel navigation */
+.room-channels { padding: 8px 6px; }
+.channel-section + .channel-section { margin-top: 18px; }
+.channel-section .channel-category { display:flex;align-items:center;justify-content:space-between; }
+.channel-add,.channel-manage { min-width:30px;min-height:30px;padding:4px;border:0;background:transparent;color:inherit; }
+.channel-entry { position:relative;display:grid;grid-template-columns:minmax(0,1fr) 30px;gap:2px; }
+.channel-entry .channel-select { min-width:0;display:flex;align-items:center;text-align:left;gap:8px;width:100%; }
+.channel-name,.channel-person-name { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.channel-unread { margin-left:auto;font-size:11px;font-weight:700; }
+.channel-people { grid-column:1 / -1;padding:2px 10px 4px 22px; }
+.channel-person { display:flex;align-items:center;gap:8px;width:100%;min-height:34px;border:0;background:transparent;color:inherit;text-align:left;border-radius:6px; }
+.channel-person .avatar { width:24px;height:24px;font-size:11px;flex:none; }
+.channel-person .speaking-dot { width:8px;height:8px;flex:none;margin-left:auto;border-radius:50%;background:transparent;animation:none; }
+.channel-person .speaking-dot.speaking { background:#39b969; }
+.channel-editor { width:min(420px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto; }
+.channel-editor form { display:grid;gap:12px; }
+.channels-enabled #sidebar-chat,.channels-enabled #sidebar-voice,.channels-enabled #sidebar-channel-tools .channel-category,.channels-enabled #room-voice-roster,.channels-enabled #room-voice-elapsed { display:none; }
+.channels-enabled[data-navigation-section="rooms"] #friends-button,.channels-enabled[data-navigation-section="rooms"] #navigation-friends-button { display:none; }
+.channels-enabled[data-navigation-section="rooms"] #room-list { display:none; }
+.channels-enabled[data-navigation-section="rooms"] #private-tab-category { display:none; }
+.channel-person:hover,.channel-manage:hover,.channel-add:hover { background:var(--hover,rgba(128,128,128,.12)); }
+.channel-select:focus-visible,.channel-manage:focus-visible,.channel-person:focus-visible { outline:2px solid var(--accent,#007aff);outline-offset:1px; }
+
+/* Home and direct messages use the main canvas; the rail is reserved for rooms. */
+.home-content { flex:1;min-height:0;overflow:auto;padding:28px; }
+.home-content h1 { margin:0 0 20px;font-size:24px; }
+.home-content .navigation-content { padding:0; }
+.channel-navigation[data-home-open="true"] #conversation-panel > :not(#home-content):not(#voice-bar) { display:none; }
+.channel-navigation #room-list,.channel-navigation .navigation-sections,.channel-navigation #sidebar-channel-tools { display:none; }
+.channel-navigation[data-conversation-kind="room"] .sidebar-shortcuts #friends-button { display:none; }
+#home-direct-tabs .conversation-tab-entry { display:flex;width:100%;max-width:none;position:relative;align-items:center; }
+#home-direct-tabs .conversation-tab { flex:1;display:flex;align-items:center;gap:10px;min-width:0;width:100%;height:auto;min-height:48px;border-radius:7px;padding:8px;text-align:left; }
+#home-direct-tabs .tab-copy { display:flex;flex-direction:column;min-width:0; }
+#home-direct-tabs .tab-copy strong,#home-direct-tabs .tab-copy small { display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+#home-direct-tabs .tab-avatar { width:32px;height:32px;flex:none;border-radius:50%; }
+#home-direct-tabs .tab-pin,#home-direct-tabs .tab-delete { position:static;flex:none;width:24px;height:28px;opacity:.6; }
+#home-direct-tabs .tab-category-heading { padding:12px 8px;font-size:12px; }
+@media(max-width:899px) { .home-content { padding:16px; } }
+
+.voice-channel-view { flex:1;min-height:0;padding:24px;overflow:auto; }
+.voice-channel-participants { display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin:24px 0; }
+.voice-channel-person { display:flex;flex-direction:column;align-items:center;gap:12px;min-height:140px;padding:20px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:inherit; }
+.voice-channel-person .avatar { width:56px;height:56px;font-size:22px; }
+.voice-channel-person .speaking-dot { width:9px;height:9px;border-radius:50%;background:transparent;animation:none; }
+.voice-channel-person .speaking-dot.speaking { background:#39b969; }
+.channel-navigation[data-voice-view="true"] #timeline,.channel-navigation[data-voice-view="true"] #composer,.channel-navigation[data-voice-view="true"] #reply-draft,.channel-navigation[data-voice-view="true"] #typing-status { display:none; }
+
+.channel-symbol { display:inline-flex;align-items:center;justify-content:center;width:20px;min-width:20px;font-size:20px;opacity:.75; }
+.channel-symbol svg { width:20px;height:20px; }
+.channel-navigation[data-home-open="true"] #room-channels { display:none; }
+
+.channel-clock { margin-left:auto;font-size:11px;font-variant-numeric:tabular-nums;opacity:.7; }

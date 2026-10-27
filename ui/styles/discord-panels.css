@@ -1,0 +1,172 @@
+/* Conversation and member panel geometry, including the persistent audio controls. */
+.discord-shell #conversation-panel {order:1;flex:1;display:flex;flex-direction:column;position:relative;min-width:0;max-width:none;width:auto;margin:0;padding:0;border:0;border-radius:0;background:var(--bg);overflow:hidden;}
+.discord-shell .topbar {display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;height:53px;min-height:53px;padding:0 15px;border-bottom:1px solid var(--line);border-radius:0;margin:0;background:var(--bg);box-shadow:0 1px 2px #00000010;backdrop-filter:none;}
+.discord-shell .conversation-identity {flex:1;min-width:0;width:auto;display:flex;align-items:center;gap:9px;padding:0;background:transparent;border:0;border-radius:0;text-align:left;}
+.discord-shell #conversation-avatar {width:29px;height:29px;min-width:29px;font-size:10px;border-radius:50%;}
+.discord-shell #conversation-avatar.group-avatar {border-radius:8px;}
+.discord-shell .conversation-heading {display:flex;align-items:center;gap:12px;min-width:0;flex:1;}
+.discord-shell #conversation-kind {display:none;}
+.discord-shell #room-title {font-size:14px;font-weight:600;letter-spacing:0;max-width:230px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.discord-shell #room-subtitle {font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:1px solid var(--hairline);padding-left:11px;min-width:0;}
+.discord-shell .header-actions {width:auto;flex:0 0 auto;min-width:0;max-width:none;display:flex;flex-wrap:nowrap;gap:5px;align-items:center;}
+.discord-shell .header-actions .secondary {background:transparent;border:0;border-radius:4px;box-shadow:none;min-height:31px;padding:6px 8px;font-size:11px;}
+.discord-shell .header-actions button:hover {background:var(--hover);}
+.discord-shell .header-actions .icon-button {width:30px;min-width:30px;height:30px;font-size:14px;letter-spacing:1px;border-radius:4px;}
+.discord-shell #connection-summary {height:20px;min-height:20px;padding:3px 15px;font-size:9px;line-height:14px;text-align:left;display:block;background:var(--bg);border:0;}
+.discord-shell #connection-summary:empty {display:none;}
+.discord-shell #details-dialog {order:2;position:relative;inset:auto;flex:0 0 232px;min-width:232px;width:232px;max-width:232px;height:100%;max-height:100%;padding:14px 12px;margin:0;background:var(--panel);border:0;border-radius:0;box-shadow:none;overflow-y:auto;backdrop-filter:none;}
+.discord-shell #details-dialog[open] {display:block;}
+.discord-shell #details-dialog:not([open]) {display:none;}
+.discord-shell #details-dialog>.panel-heading {margin:0 0 17px;gap:5px;}
+.discord-shell #details-dialog>.panel-heading h2 {font-size:13px;letter-spacing:0;}
+.discord-shell #details-dialog .details-heading {font-size:10px;letter-spacing:.3px;}
+.discord-shell #details-dialog .members {margin-top:11px;}
+.discord-shell #details-dialog .member {display:flex;align-items:center;gap:4px;min-height:46px;padding:5px 0;border:0;}
+.discord-shell #details-dialog .member-profile {flex:1;min-width:0;gap:9px;display:flex;align-items:center;border-radius:4px;padding:2px;background:transparent;}
+.discord-shell #details-dialog .member-profile:hover {background:var(--hover);}
+.discord-shell #details-dialog .member .avatar {height:30px;width:30px;min-width:30px;font-size:9px;}
+.discord-shell #details-dialog .member-name {font-size:12px;font-weight:500;white-space:normal;overflow-wrap:anywhere;}
+.discord-shell #details-dialog .member-meta {font-size:9px;}
+.discord-shell #details-dialog .friend-action {font-size:9px;padding:4px 2px;max-width:50px;overflow-wrap:anywhere;min-width:0;}
+.discord-shell #details-dialog .detail-section {padding-top:14px;margin-top:15px;border-top:1px solid var(--line);}
+.discord-shell #details-dialog .detail-section h3 {font-size:11px;}
+.discord-shell #details-dialog .detail-section p {font-size:10px;line-height:1.6;}
+.discord-shell #details-dialog .secondary {font-size:10px;min-height:30px;padding:7px;}
+.discord-shell #details-dialog .room-illustration-section {padding:0 0 13px;margin-bottom:15px;}
+.discord-shell #details-dialog #room-illustration {height:54px;width:54px;min-width:54px;border-radius:14px;}
+.discord-shell #details-dialog #illustration-name {font-size:15px;margin-top:9px;}
+.discord-shell #details-dialog #illustration-hint {font-size:10px;line-height:1.6;}
+.discord-shell #details-dialog #peer-card {text-align:left;padding:0;}
+.discord-shell #details-dialog #peer-avatar {width:65px;height:65px;min-width:65px;font-size:21px;margin:6px 0 15px;}
+.discord-shell #details-dialog #peer-name {font-size:21px;letter-spacing:-.5px;}
+.discord-shell #details-dialog .peer-facts>div {display:block;}
+.discord-shell #details-dialog .peer-facts dt {font-size:10px;margin-bottom:4px;}
+.discord-shell #details-dialog .peer-facts dd {font-size:11px;}
+.discord-shell #details-dialog .identity-details {font-size:10px;}
+.discord-shell #details-dialog #peer-identity {font-size:9px;}
+.discord-shell #details-dialog .field-hint {font-size:10px;line-height:1.6;}
+.discord-shell #voice-bar {display:grid;grid-template-columns:minmax(0,1fr);gap:7px;flex-shrink:0;width:auto;margin:0;padding:10px 9px;background:var(--account);border:0;border-top:1px solid var(--line);border-radius:0;box-shadow:none;backdrop-filter:none;max-height:290px;overflow-y:auto;}
+.discord-shell #voice-bar .dock-heading {display:flex;flex-wrap:wrap;align-items:center;gap:5px;min-width:0;}
+.discord-shell #voice-bar .studio-audio-mark {width:15px;min-width:15px;height:15px;color:var(--success);}
+.discord-shell #voice-bar .studio-audio-mark svg {width:15px;height:15px;}
+.discord-shell #voice-label {font-size:12px;color:var(--success);max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;}
+.discord-shell #stop-voice {font-size:10px;min-height:26px;padding:4px 6px;border:0;border-radius:4px;background:transparent;margin-left:0;}
+.discord-shell #voice-elapsed {font-size:9px;font-variant-numeric:tabular-nums;margin-left:auto;}
+.discord-shell #voice-bar .dock-tools {display:flex;flex-wrap:wrap;gap:5px;align-items:center;min-width:0;}
+.discord-shell #voice-hint {display:block;order:3;flex-basis:100%;font-size:9px;white-space:normal;margin:0;}
+.discord-shell #voice-bar .dock-tools button {font-size:10px;min-height:27px;border-radius:4px;padding:5px 7px;background:var(--hover);border:0;}
+.discord-shell #voice-roster {display:flex;flex-direction:column;gap:3px;grid-column:auto;max-height:112px;overflow:auto;padding:2px 0;}
+.discord-shell #voice-roster .voice-person {border:0;background:transparent;border-radius:3px;padding:3px 5px;min-height:26px;gap:7px;justify-content:flex-start;min-width:0;}
+.discord-shell #voice-roster .voice-avatar {height:20px;width:20px;min-width:20px;font-size:7px;}
+.discord-shell #voice-roster .voice-person-name {font-size:10px;max-width:145px;overflow:hidden;text-overflow:ellipsis;}
+.discord-shell #voice-roster .is-speaking .voice-avatar {outline:2px solid var(--success);outline-offset:1px;}
+.discord-shell .voice-person.is-speaking {box-shadow:none;border-color:transparent;}
+.discord-shell .presence-dot {border-color:var(--panel);}
+.discord-shell .reconnect-panel {margin:10px 15px;border-radius:5px;padding:14px;}
+.discord-shell #reconnect-button {padding:11px 14px;border-radius:4px;min-height:39px;}
+.discord-shell dialog:not(#navigation-dialog):not(#details-dialog) {border-radius:8px;background:var(--panel);box-shadow:var(--shadow-floating);backdrop-filter:none;}
+.discord-shell dialog::backdrop {backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--overlay);}
+.discord-shell button,.discord-shell input,.discord-shell select,.discord-shell textarea {border-radius:4px;}
+.discord-shell .avatar,.discord-shell .profile-photo {border-radius:50%;}
+.discord-shell .group-avatar {border-radius:10px;}
+.discord-shell .settings-dialog {width:720px;max-width:calc(100vw - 24px);}
+.discord-shell #navigation-dialog .friend-list {max-height:none;overflow:visible;padding:0;margin:0;}
+.discord-shell #navigation-friends .friend-list {overflow:visible;}
+.discord-shell .friend-row {padding:11px 3px;gap:7px;}
+.discord-shell .friend-heading {gap:8px;}
+.discord-shell .friend-heading .avatar {width:29px;height:29px;min-width:29px;font-size:9px;}
+.discord-shell .friend-heading strong {font-size:12px;}
+.discord-shell .friend-controls {gap:4px;flex-wrap:wrap;}
+.discord-shell .friend-controls button {font-size:10px;padding:4px 6px;}
+.discord-shell .friends-tools {margin:6px 0 10px;}
+.discord-shell .friends-tools .primary {font-size:11px;padding:9px;}
+.discord-shell .friends-tools .text-button {font-size:10px;}
+@media(min-width:900px) { .discord-shell #navigation-toggle {display:none;} }
+@media(max-width:1179px) {
+  .discord-shell #details-dialog {position:fixed;inset:42px 10px 10px auto;width:310px;min-width:0;max-width:calc(100vw - 20px);height:calc(100dvh - 52px);max-height:calc(100dvh - 52px);margin:0;border:1px solid var(--line);border-radius:8px;z-index:10;padding:16px;}
+  .discord-shell #room-subtitle {max-width:160px;}
+}
+@media(max-width:899px) {
+  #conversation-rail {display:none;}
+  .discord-shell .app-header {height:35px;min-height:35px;}
+  .discord-shell #navigation-toggle {display:grid;width:30px;height:30px;padding:5px;color:var(--muted);border:0;background:transparent;}
+  .discord-shell #navigation-toggle svg {width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;}
+  #navigation-dialog,#navigation-dialog[open] {position:fixed;inset:8px auto 8px 8px;width:350px;min-width:0;max-width:calc(100vw - 16px);height:calc(100dvh - 16px);max-height:calc(100dvh - 16px);padding:0;border:1px solid var(--line);border-radius:8px;z-index:10;}
+  #navigation-dialog[open] {display:grid;grid-template-columns:72px minmax(0,1fr);grid-template-rows:48px auto auto minmax(0,1fr) auto auto;}
+  #navigation-dialog>* {grid-column:2;min-width:0;}
+  #navigation-dialog>#navigation-rail-slot {display:flex;flex-direction:column;align-items:center;grid-column:1;grid-row:1/-1;background:var(--rail);overflow:auto;padding-top:8px;}
+  #navigation-dialog>.panel-heading .close-dialog {display:block;width:26px;min-width:26px;height:26px;}
+  #navigation-dialog>.navigation-content[hidden] {display:none;}
+  #navigation-dialog>.navigation-content {grid-row:4;min-height:0;}
+  #navigation-dialog>.sidebar-bottom {grid-row:5;}
+  #navigation-dialog>.sidebar-footer {grid-row:6;}
+  .discord-shell #voice-bar {grid-template-columns:minmax(0,1fr) auto;max-height:145px;border:1px solid var(--line);border-radius:5px;margin:0 12px 8px;padding:8px 10px;gap:6px;}
+  .discord-shell #voice-roster {grid-column:1/-1;flex-direction:row;max-height:none;overflow-x:auto;overflow-y:hidden;white-space:nowrap;}
+  .discord-shell #voice-bar .dock-tools {justify-content:flex-end;}
+  .discord-shell #voice-hint {display:none;}
+  .discord-shell #voice-label {max-width:170px;}
+  .discord-shell #details-dialog {inset:43px 10px 10px auto;}
+}
+@media(max-width:650px) {
+  .discord-shell .topbar {min-height:55px;height:55px;padding:0 10px;gap:5px;}
+  .discord-shell .conversation-heading {display:block;}
+  .discord-shell #room-subtitle {display:block;border:0;padding:0;font-size:9px;max-width:210px;margin-top:3px;}
+  .discord-shell #room-title {font-size:14px;max-width:210px;}
+  .discord-shell .header-actions {gap:1px;}
+  .discord-shell .header-actions .secondary {font-size:10px;padding:6px;min-width:30px;}
+  .discord-shell #voice-button {max-width:78px;white-space:normal;}
+  .discord-shell #details-toggle {max-width:54px;}
+  .discord-shell #voice-bar {grid-template-columns:minmax(0,1fr);padding:7px 9px;}
+  .discord-shell #voice-bar .dock-heading {flex-wrap:nowrap;}
+  .discord-shell #voice-label {max-width:210px;}
+  .discord-shell #voice-bar .dock-tools {justify-content:flex-start;}
+  .discord-shell #voice-roster {max-height:33px;}
+  .discord-shell .account-controls .profile>div {display:block;}
+  .discord-shell #settings-button {display:grid;}
+}
+@media(pointer:coarse) {
+  .discord-shell .header-actions button,.discord-shell .composer button {min-height:42px;}
+  .discord-shell #conversation-tabs .tab-pin,.discord-shell #conversation-tabs .tab-delete {opacity:1;pointer-events:auto;}
+  .discord-shell #voice-bar .dock-tools button,.discord-shell #stop-voice {min-height:36px;}
+}
+@media(forced-colors:active) {
+  #conversation-rail,#navigation-rail-slot,.sidebar-footer {background:Canvas;}
+  #conversation-tabs .tab-avatar {forced-color-adjust:auto;}
+}
+/* Reset legacy grid placement: the sidebar dock has one column. */
+.discord-shell #voice-bar .dock-heading {grid-column:1;grid-row:1;}
+.discord-shell #voice-bar .dock-tools {grid-column:1;grid-row:2;}
+.discord-shell #voice-bar #voice-roster {grid-column:1;grid-row:3;}
+.discord-shell .conversation-heading {flex-direction:row;justify-content:flex-start;align-items:baseline;text-align:left;}
+.discord-shell .rail-home,.discord-shell .rail-action {border-radius:50%;}
+.discord-shell .rail-home:hover,.discord-shell .rail-home[aria-pressed=true],.discord-shell .rail-action:hover {border-radius:15px;}
+@media(max-width:899px) and (min-width:651px) {
+ .discord-shell #voice-bar .dock-tools {grid-column:2;grid-row:1;}
+ .discord-shell #voice-bar #voice-roster {grid-column:1/-1;grid-row:2;}
+}
+.discord-shell #details-dialog .room-information {border-top:1px solid var(--line);margin-top:18px;padding-top:14px;font-size:11px;}
+.discord-shell #details-dialog .room-information>summary {cursor:pointer;color:var(--muted);font-weight:600;}
+.discord-shell #details-dialog .room-information[open]>summary {margin-bottom:15px;}
+.discord-shell #details-dialog .room-information .detail-section {margin-top:14px;}
+.discord-shell #navigation-toggle::before,.discord-shell #navigation-toggle::after,.discord-shell #settings-button::before {display:none;content:none;}
+/* Compact toolbar icons retain the original labels for assistive technology. */
+.discord-shell #voice-button,.discord-shell #search-button,.discord-shell #details-toggle {font-size:0;width:32px;min-width:32px;height:32px;padding:6px;}
+.discord-shell #voice-button::before,.discord-shell #search-button::before,.discord-shell #details-toggle::before {content:'';display:block;height:20px;width:20px;margin:auto;background:currentColor;mask-size:contain;mask-repeat:no-repeat;mask-position:center;-webkit-mask-size:contain;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;}
+.discord-shell #search-button::before {mask-image:url("../icons/search.svg");-webkit-mask-image:url("../icons/search.svg");}
+.discord-shell #details-toggle::before {mask-image:url("../icons/friends.svg");-webkit-mask-image:url("../icons/friends.svg");}
+.discord-shell #voice-button::before {mask-image:url("../icons/voice.svg");-webkit-mask-image:url("../icons/voice.svg");}
+.discord-shell[data-conversation-kind=direct] #voice-button::before {mask-image:url("../icons/call.svg");-webkit-mask-image:url("../icons/call.svg");}
+.discord-shell .sidebar-shortcuts #friends-button::before,.discord-shell .sidebar-shortcuts #activity-button::before {content:'';display:block;width:18px;height:18px;flex-shrink:0;background:currentColor;mask-size:contain;mask-repeat:no-repeat;-webkit-mask-size:contain;-webkit-mask-repeat:no-repeat;}
+.discord-shell .sidebar-shortcuts #friends-button::before {mask-image:url("../icons/friends.svg");-webkit-mask-image:url("../icons/friends.svg");}
+.discord-shell .sidebar-shortcuts #activity-button::before {mask-image:url("../icons/activity.svg");-webkit-mask-image:url("../icons/activity.svg");}
+.discord-shell .sidebar-shortcuts #friends-button::after,.discord-shell .sidebar-shortcuts #activity-button::after {display:none;content:none;}
+@supports not (mask-image:linear-gradient(black,black)) {
+ .discord-shell #voice-button,.discord-shell #search-button,.discord-shell #details-toggle {font-size:10px;width:auto;min-width:35px;}
+ .discord-shell #voice-button::before,.discord-shell #search-button::before,.discord-shell #details-toggle::before {display:none;}
+}
+@media(min-width:900px) { .discord-shell #navigation-dialog {animation:none;} }
+@media(min-width:1180px) { .discord-shell #details-dialog {animation:none;} }
+.discord-shell .request-help {display:block;grid-column:1/-1;font-size:10px;line-height:1.6;color:var(--muted);margin-top:5px;}
+.discord-shell .request-error {grid-column:1/-1;width:100%;font-size:10px;color:var(--muted);margin-top:5px;}
+.discord-shell .request-error summary {cursor:pointer;}
+.discord-shell .request-error p {font-size:10px;line-height:1.6;overflow-wrap:anywhere;user-select:text;padding:7px 0;}

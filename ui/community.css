@@ -1,0 +1,53 @@
+/* Local emoji artwork, accessible room controls and community surfaces. */
+.twemoji-wrap{display:inline-block;position:relative;width:1.2em;height:1.2em;vertical-align:-.22em;line-height:1;margin:0 .04em}
+.twemoji-wrap>img.twemoji{display:block;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;margin:0;border:0;border-radius:0}
+.twemoji-original{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.twemoji-failed{width:auto;height:auto}.twemoji-failed>.twemoji-original{position:static;clip-path:none;width:auto;height:auto}
+.unicode-emoji .twemoji-wrap{width:28px;height:28px;vertical-align:middle}.emoji-credit{font-size:11px;line-height:1.5;margin:12px 0 0}
+#emoji-dialog{width:min(520px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto}
+#emoji-dialog #unicode-grid{max-height:min(330px,calc(100dvh - 285px));overflow-y:auto}
+#emoji-dialog .segmented{position:sticky;top:0;z-index:1;gap:4px}
+#emoji-dialog #custom-panel{display:flex;flex-direction:column;gap:12px}#emoji-dialog #custom-panel[hidden]{display:none}
+#emoji-dialog #add-emoji{order:-1;min-height:42px;margin:0}#emoji-dialog .custom-grid{max-height:min(300px,45dvh)}
+#emoji-dialog .emoji-library-row{flex-wrap:wrap}#emoji-dialog .emoji-library-choose{flex:1;min-width:120px}
+.discord-shell #search-form .search-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:18px}
+.discord-shell #search-form .search-filter{min-width:0;display:grid;gap:8px;align-content:start}
+.discord-shell #search-form .search-filter>label{margin:0}.discord-shell #search-form .search-filter>select{width:100%;min-width:0;margin:0;min-height:40px;box-sizing:border-box}
+.onion-glyph{display:block;width:18px;height:18px;background:currentColor;mask:url('icons/onion.svg') center/contain no-repeat;-webkit-mask:url('icons/onion.svg') center/contain no-repeat;flex-shrink:0}
+.peer-tor{display:inline-flex;align-items:center;justify-content:center;flex:none;padding:3px;border-radius:7px;background:#eee3f7;color:#65368a;vertical-align:middle;margin-left:4px}
+.peer-tor .onion-glyph{width:14px;height:14px}#peer-name>.peer-tor{margin-left:9px}.channel-person>.peer-tor{margin-left:0}
+.privacy-settings{border:0;padding:0;gap:18px}.tor-hero{display:flex;align-items:center;gap:16px}.tor-hero h3{margin:0 0 5px;font-size:22px}.tor-hero p{margin:0;color:var(--muted)}
+.tor-hero-icon{display:grid;place-items:center;background:#754396;color:#fff;border-radius:18px;width:64px;height:64px;flex:none}.tor-hero-icon .onion-glyph{width:38px;height:38px}
+.tor-toggle-row{display:flex;align-items:center;justify-content:space-between;gap:18px;background:var(--field);padding:18px;border-radius:14px;margin:0}.tor-toggle-row>span{display:grid;gap:6px;min-width:0}.tor-toggle-row small{color:var(--muted);line-height:1.5}
+.tor-toggle-row #tor-enabled{appearance:none;flex:0 0 46px;width:46px;height:27px;min-height:0;padding:3px;border:1px solid var(--muted);border-radius:20px;background:var(--panel);cursor:pointer;margin:0}
+.tor-toggle-row #tor-enabled::before{content:'';display:block;width:19px;height:19px;border-radius:50%;background:var(--muted);transition:transform .16s ease}
+.tor-toggle-row #tor-enabled:checked{background:#754396;border-color:#754396}.tor-toggle-row #tor-enabled:checked::before{background:#fff;transform:translateX(19px)}
+.tor-status-card{display:grid;grid-template-columns:10px 1fr;gap:5px 10px;align-items:center;padding:14px 16px;border:1px solid var(--line);border-radius:12px}.tor-status-dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.tor-status-card[data-state=active] .tor-status-dot{background:var(--success)}.tor-status-card[data-state=connecting] .tor-status-dot{background:#d8a12b}.tor-status-card #tor-route-status{grid-column:2;margin:0;line-height:1.5}
+.tor-path{display:flex;align-items:center;gap:12px;justify-content:space-between;font-size:12px;color:var(--muted)}.tor-path-step{flex:1;text-align:center}.tor-path-step+ .tor-path-step::before{content:'→';float:left;margin-left:-10px}
+.tor-features{list-style:none;padding:0;margin:0;display:grid;gap:15px}.tor-features li{display:grid;gap:5px}.tor-features li>span{font-size:13px;line-height:1.5;color:var(--muted)}
+.tor-pending-change{border-left:3px solid var(--accent);padding:8px 12px;background:var(--selection);font-size:13px;line-height:1.5;margin:0}.tor-pending-change[hidden]{display:none}
+.discord-shell #navigation-friends{max-width:850px;margin:0 auto;width:100%;box-sizing:border-box}.friends-intro{margin:0 0 18px;line-height:1.6;color:var(--muted);font-size:14px}
+.discord-shell #navigation-friends .friends-tools{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:0 0 24px}.discord-shell #navigation-friends .friends-tools button{width:auto;font-size:13px;min-height:40px;padding:10px 16px}
+.friends-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:18px}.friends-filters{display:flex;gap:6px}.friends-filters button{display:flex;align-items:center;gap:8px;min-height:38px}.friends-filters [aria-pressed=true]{background:var(--accent);color:var(--accent-foreground)}.friends-count{font-size:11px;font-variant-numeric:tabular-nums;border-radius:9px;padding:1px 5px;background:color-mix(in srgb,currentColor 12%,transparent)}
+#friends-search{flex:1;min-width:160px;width:auto;margin:0;min-height:38px}.friends-empty{padding:24px 12px;text-align:center;color:var(--muted);line-height:1.7}
+.discord-shell #navigation-friends .friend-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;padding:18px 0;border-bottom:1px solid var(--line)}
+.discord-shell #navigation-friends .friend-row[hidden],.discord-shell #navigation-friends .friend-section[hidden],.friends-empty[hidden]{display:none}
+.discord-shell #navigation-friends .friend-heading{display:flex;min-width:0;gap:12px;text-align:left;justify-content:flex-start}.discord-shell #navigation-friends .friend-heading .avatar{width:40px;height:40px;min-width:40px;font-size:14px}
+.discord-shell #navigation-friends .friend-heading strong{font-size:15px;white-space:normal;overflow-wrap:anywhere;min-width:0}.discord-shell #navigation-friends .friend-row>small{grid-column:1;margin:0 0 0 52px;font-size:12px;color:var(--muted)}
+.discord-shell #navigation-friends .friend-controls{grid-column:2;grid-row:1/3;align-self:center;display:flex;align-items:center;gap:8px}.discord-shell #navigation-friends .friend-controls button{font-size:13px;min-height:36px;padding:8px 12px}
+.friend-more{position:relative}.friend-more>summary{list-style:none;cursor:pointer;padding:8px;border-radius:8px;min-height:36px;box-sizing:border-box}.friend-more>summary::-webkit-details-marker{display:none}.friend-more>summary:hover{background:var(--hover)}
+.friend-more-content{position:absolute;right:0;top:100%;z-index:4;display:grid;gap:8px;min-width:150px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);box-shadow:0 8px 24px #0003}.friend-more-content .friend-identity{font-size:11px;padding:5px;color:var(--muted)}
+.discord-shell #navigation-friends .request-error,.discord-shell #navigation-friends .request-help{grid-column:1/-1;margin-left:52px}.discord-shell #navigation-friends .friend-section h3{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.discord-shell #accepted-friend-list .friend-row>.friend-identity{display:none}
+.discord-shell #navigation-friends .friends-tools{flex-direction:row;justify-content:flex-start;padding:0}
+.discord-shell #navigation-friends .friend-section:has(#accepted-friend-list)>h3{display:none}
+.discord-shell #navigation-friends .friend-row{border-width:0 0 1px;border-radius:0;background:transparent;box-shadow:none}
+.discord-shell #navigation-friends .friend-row>small,.discord-shell #navigation-friends .friend-controls{padding-left:0}
+.discord-shell #navigation-friends .friend-heading strong{overflow:visible;text-overflow:clip}
+@media(max-width:650px){.discord-shell #search-form .search-filters{grid-template-columns:1fr;gap:14px}.discord-shell #navigation-friends .friend-row{grid-template-columns:minmax(0,1fr)}.discord-shell #navigation-friends .friend-controls{grid-column:1;grid-row:auto;margin-left:52px}.tor-toggle-row{padding:14px}.tor-path{gap:8px;font-size:11px}.emoji-grid{grid-template-columns:repeat(auto-fit,minmax(40px,1fr))}}
+@media(prefers-reduced-motion:reduce){.tor-toggle-row #tor-enabled::before{transition:none}}
+@media(forced-colors:active){.tor-toggle-row #tor-enabled{appearance:auto}.tor-toggle-row #tor-enabled::before{display:none}.peer-tor{color:CanvasText;background:Canvas}.onion-glyph{forced-color-adjust:none;background:CanvasText}}
+.twemoji-loading>.twemoji-original{position:static;display:block;clip-path:none;width:100%;height:100%;line-height:1;text-align:center;overflow:visible}
+.twemoji-wrap.twemoji-loading>img.twemoji{position:absolute;inset:0;opacity:0}
+.twemoji-wrap>img.twemoji[hidden]{display:none!important}

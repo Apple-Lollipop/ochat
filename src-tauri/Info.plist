@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>NSCameraUsageDescription</key><string>Ochat uses your camera only when you explicitly enable it during an accepted call or a voice conversation you joined.</string>
+  <key>NSMicrophoneUsageDescription</key><string>Ochat uses your microphone when you accept or start a voice conversation or explicitly test your microphone.</string>
+</dict></plist>
+

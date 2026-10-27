@@ -1,0 +1,22 @@
+/* Discord's neutral surfaces; the saved accent remains user-controlled. */
+:root {
+  --bg:#ffffff; --panel:#f2f3f5; --sidebar:#f2f3f5; --field:#e3e5e8;
+  --rail:#e3e5e8; --account:#ebedef; --text:#24262b; --muted:#5c626c;
+  --line:#d9dce1; --hairline:#d9dce1; --bubble:transparent; --hover:#e5e7eb;
+  --glass:#f2f3f5; --message-text:#313338; --shadow-floating:0 8px 28px #00000025;
+  --radius-sm:4px; --radius-md:6px; --radius-lg:8px; --radius-xl:10px;
+}
+:root[data-theme=dark] {
+  --bg:#313338; --panel:#2b2d31; --sidebar:#2b2d31; --field:#383a40;
+  --rail:#1e1f22; --account:#232428; --text:#f2f3f5; --muted:#b5bac1;
+  --line:#232428; --hairline:#41434a; --bubble:transparent; --hover:#35373c;
+  --glass:#2b2d31; --message-text:#dbdee1; --success:#36c578;
+}
+@media(prefers-color-scheme:dark) {
+  :root:not([data-theme]),:root[data-theme=system] {
+    --bg:#313338; --panel:#2b2d31; --sidebar:#2b2d31; --field:#383a40;
+    --rail:#1e1f22; --account:#232428; --text:#f2f3f5; --muted:#b5bac1;
+    --line:#232428; --hairline:#41434a; --bubble:transparent; --hover:#35373c;
+    --glass:#2b2d31; --message-text:#dbdee1; --success:#36c578;
+  }
+}

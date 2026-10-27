@@ -1,0 +1,124 @@
+"""Package native-field Twemoji from nanoemoji's COLRv0 build, with shaping checks.
+
+Build prerequisite: nanoemoji==0.16.0, fonttools==4.67.0, brotli==1.2.1,
+uharfbuzz==0.57.0. See ui/vendor/twemoji/FONT.md for the build command.
+"""
+import csv
+import hashlib
+import itertools
+import json
+from pathlib import Path
+
+from fontTools.feaLib.builder import addOpenTypeFeaturesFromString
+from fontTools.ttLib import TTFont
+from fontTools.ttLib.tables._c_m_a_p import CmapSubtable
+import uharfbuzz as hb
+
+root = Path(__file__).resolve().parents[2]
+build = root / 'local-data/twemoji-font-build'
+font = TTFont(build / 'OchatTwemoji.ttf', recalcTimestamp=False)
+cmap = font.getBestCmap()
+sequences = {}
+with (build / 'OchatTwemoji.glyphmap').open(encoding='utf-8') as source:
+    for row in csv.reader(source):
+        sequence = tuple(int(value, 16) for value in row[3:] if value)
+        if sequence:
+            sequences[sequence] = row[2]
+
+# A single longest-match lookup prevents a skin-tone or short ZWJ ligature from
+# consuming the beginning of a longer sequence before it has a chance to match.
+variants = dict(sequences)
+for sequence, glyph in sequences.items():
+    selectors = [index for index, cp in enumerate(sequence) if cp == 0xFE0F]
+    for removed in itertools.product([False, True], repeat=len(selectors)):
+        omit = {index for index, remove in zip(selectors, removed) if remove}
+        variant = tuple(cp for index, cp in enumerate(sequence) if index not in omit)
+        if variant:
+            variants.setdefault(variant, glyph)
+
+rules = []
+for sequence, glyph in sorted(variants.items(), key=lambda item: (-len(item[0]), item[0])):
+    if len(sequence) > 1:
+        assert all(cp in cmap for cp in sequence), sequence
+        rules.append('sub ' + ' '.join(cmap[cp] for cp in sequence) + ' by ' + glyph + ';')
+features = '\n'.join([
+    'languagesystem DFLT dflt;', 'languagesystem latn dflt;',
+    'lookup EmojiSequences useExtension {', *rules, '} EmojiSequences;',
+    'feature ccmp { lookup EmojiSequences; } ccmp;',
+    'feature rlig { lookup EmojiSequences; } rlig;',
+])
+if 'GSUB' in font:
+    del font['GSUB']
+addOpenTypeFeaturesFromString(font, features)
+
+# Emoji presentation selectors choose the existing colored scalar glyph rather
+# than the monochrome glyph in an earlier text font in the CSS fallback list.
+variation = CmapSubtable.newSubtable(14)
+variation.platformID = 0
+variation.platEncID = 5
+variation.language = 0
+variation.cmap = {}
+presentation_bases = {seq[0] for seq in sequences if len(seq) == 1 or seq[-1] == 0x20E3}
+variation.uvsDict = {0xFE0F: sorted((cp, None) for cp in presentation_bases)}
+font['cmap'].tables = [table for table in font['cmap'].tables if table.format != 14] + [variation]
+name = font['name']
+for name_id, value in {
+    0: 'Twemoji artwork by Twitter and contributors. CC-BY 4.0. Font conversion for Ochat.',
+    5: 'Version 17.003',
+    13: 'Twemoji artwork is licensed under CC-BY 4.0; converted to COLRv0 for Ochat.',
+    14: 'https://creativecommons.org/licenses/by/4.0/',
+}.items():
+    name.setName(value, name_id, 3, 1, 0x409)
+font.save(build / 'OchatTwemoji-shaped.ttf')
+
+data = (build / 'OchatTwemoji-shaped.ttf').read_bytes()
+hb_font = hb.Font(hb.Face(data))
+glyphs = font.getGlyphOrder()
+failures = []
+for sequence, expected in variants.items():
+    buffer = hb.Buffer()
+    buffer.add_str(''.join(chr(cp) for cp in sequence))
+    buffer.guess_segment_properties()
+    hb.shape(hb_font, buffer)
+    actual = [glyphs[info.codepoint] for info in buffer.glyph_infos]
+    if actual != [expected]:
+        failures.append({'sequence': [hex(cp) for cp in sequence], 'expected': expected, 'actual': actual})
+for text in ['😀', '👨🏽‍💻', '🇫🇷', '❤️', '1️⃣', '☕', '©️', '🫩']:
+    sequence = tuple(map(ord, text))
+    expected = variants.get(sequence) or variants[tuple(cp for cp in sequence if cp != 0xFE0F)]
+    buffer = hb.Buffer()
+    buffer.add_str(text)
+    buffer.guess_segment_properties()
+    hb.shape(hb_font, buffer)
+    actual = [glyphs[info.codepoint] for info in buffer.glyph_infos]
+    if actual != [expected]:
+        failures.append({'sequence': [hex(cp) for cp in sequence], 'expected': expected, 'actual': actual})
+assert not failures, json.dumps(failures[:8])
+
+destination = root / 'ui/vendor/twemoji/OchatTwemoji.woff2'
+font.flavor = 'woff2'
+font.save(destination)
+# Keep ordinary digits/#/* in the text face. Forcing emoji presentation on an
+# entire textarea would select the invisible component glyphs used by keycaps.
+# Exclude actual emoji bases from the text face so unqualified BMP emojis also
+# select Twemoji, without changing the user's Unicode or native editing.
+emoji_bases = {seq[0] for seq in sequences if seq[0] > 0x7F} | {0x20E3}
+ranges = []
+start = 0
+for cp in sorted(emoji_bases):
+    if cp > start:
+        ranges.append(f'U+{start:X}-{cp-1:X}')
+    start = cp + 1
+ranges.append(f'U+{start:X}-10FFFF')
+(destination.parent / 'input-font.css').write_text(
+    '/* Generated by scripts/fonts/finish-twemoji.py. Keep native text and emoji fallback distinct. */\n'
+    '@font-face{font-family:"Ochat Input Text";src:local("gg sans"),url("../../fonts/NotoSans-Variable.ttf") format("truetype");'
+    'font-weight:100 900;font-style:normal;font-display:swap;unicode-range:' + ','.join(ranges) + ';}\n', encoding='utf-8')
+report = {
+    'artwork': 'Twemoji 17.0.3', 'color_format': 'COLRv0',
+    'source_sequences': len(sequences), 'shaped_sequences_and_variants': len(variants),
+    'glyph_count': len(glyphs), 'bytes': destination.stat().st_size,
+    'sha256': hashlib.sha256(destination.read_bytes()).hexdigest(),
+}
+(build / 'font-report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+print(json.dumps(report))

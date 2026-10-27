@@ -1,0 +1,19 @@
+family = "Ochat Twemoji"
+output_file = "OchatTwemoji.ttf"
+color_format = "glyf_colr_0"
+keep_glyph_names = true
+upem = 1024
+width = 1280
+ascender = 950
+descender = -250
+
+[axis.wght]
+name = "Weight"
+default = 400
+
+[master.regular]
+style_name = "Regular"
+srcs = ["../../ui/vendor/twemoji/svg/*.svg"]
+
+[master.regular.position]
+wght = 400

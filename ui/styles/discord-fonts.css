@@ -1,0 +1,10 @@
+@font-face {
+  font-family:"Ochat Sans";
+  src:url("../fonts/NotoSans-Variable.ttf") format("truetype");
+  font-weight:100 900;
+  font-style:normal;
+  font-display:swap;
+}
+:root,.discord-shell {font-family:"gg sans","Ochat Sans","Noto Sans","Segoe UI",sans-serif;}
+.discord-shell button,.discord-shell input,.discord-shell textarea,.discord-shell select {font-family:inherit;}
+.discord-shell .message-header time {font-family:inherit;}

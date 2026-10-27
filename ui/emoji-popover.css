@@ -1,0 +1,8 @@
+#emoji-dialog.emoji-popover{position:fixed;inset:auto;margin:0;width:min(360px,calc(100vw - 24px));max-height:min(390px,calc(100dvh - 36px));padding:14px;box-sizing:border-box;overflow:auto;z-index:180;box-shadow:0 12px 38px #0004;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+#emoji-dialog.emoji-popover h2{font-size:17px;margin:0 0 10px}
+#emoji-dialog.emoji-popover #unicode-grid{max-height:210px;grid-template-columns:repeat(auto-fill,minmax(34px,1fr));gap:4px}
+#emoji-dialog.emoji-popover .unicode-emoji{min-width:32px;min-height:34px;padding:3px}
+#emoji-dialog.emoji-popover .custom-grid{max-height:170px}
+#emoji-dialog.emoji-popover .segmented{position:static;flex-wrap:wrap}
+#emoji-dialog.emoji-popover .dialog-actions{position:sticky;bottom:-14px;background:var(--panel);padding:8px 0;margin-top:8px}
+#emoji-dialog.emoji-popover .field-hint{font-size:12px;line-height:1.4}

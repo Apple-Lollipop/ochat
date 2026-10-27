@@ -1,0 +1,32 @@
+[
+  {
+    "name": "10-focus-architecture",
+    "overflow": false,
+    "inputs": [
+      {
+        "visible": true,
+        "width": 709
+      }
+    ]
+  },
+  {
+    "name": "11-deck-architecture",
+    "overflow": false,
+    "inputs": [
+      {
+        "visible": true,
+        "width": 732
+      }
+    ]
+  },
+  {
+    "name": "12-duo-architecture",
+    "overflow": false,
+    "inputs": [
+      {
+        "visible": true,
+        "width": 528.578125
+      }
+    ]
+  }
+]
