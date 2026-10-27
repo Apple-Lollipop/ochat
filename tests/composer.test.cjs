@@ -118,18 +118,31 @@ test('Friends separates contacts from requests without losing actions or search'
 });
 async function setup(t,nativeWindow,captureCapabilities={native:false}) {
   const {Window} = await import('happy-dom');
-  const window = new Window({url:'http://tauri.localhost',settings:{enableJavaScriptEvaluation:true,suppressInsecureJavaScriptEnvironmentWarning:true}});
-  window.document.write(html); const calls=[];
+  let window = new Window({url:'http://tauri.localhost',settings:{enableJavaScriptEvaluation:true,suppressInsecureJavaScriptEnvironmentWarning:true}});
+  let app,fixture;
+  const calls=[];
+  // Close the associated browser and release references retained by test hooks.
+  t.after(async()=>{
+    try { window.OchatEmoji?.destroy();window.document.body.replaceChildren(); }
+    finally {
+      try { await window.happyDOM.close(); }
+      finally {
+        if(fixture)for(const key of Object.keys(fixture))fixture[key]=null;
+        calls.length=0;app=null;window=null;
+      }
+    }
+  });
+  window.document.write(html);
   window.__TAURI__ = {event:{listen:async()=>()=>{}},core:{invoke:async(command,args)=>{calls.push([command,args]);if(command==='account_status')return false;if(command==='media_library')return {recent:[],favorites:[]};if(command==='record_recent_emoji')return {recent:[args.value],favorites:[]};if(command==='screen_capture_capabilities')return captureCapabilities;if(command==='read_clipboard_image')return null;if(['message_updates','message_deliveries','activity_items','history','room_emojis','list_rooms','audio_devices','room_participants','room_snapshots','personal_emojis'].includes(command))return [];if(command==='select_room')return connected;if(command==='get_conversation_layout')return {order:[],pinned:[]};if(command==='save_conversation_layout')return args.layout;if(command==='get_settings')return settings;if(command==='emoji_asset')return null;return 1;}}};
   if(nativeWindow)window.__TAURI__.window={getCurrentWindow:()=>nativeWindow};
-  const app = window.eval(source + '\n;({completeAccount,openEmojis,render,applyTheme,accentTokens,parseColor,contrast,mixColor,handleEvent,loadRoom,refreshMessageTools,openMessageTools,openReactions,openCollection,refreshActivity,refreshDiagnostics,showRecovery,lockAccount,renderEmojiLibrary,normalizeLayout,saveLayout,allRooms,acknowledgeConversation,messageLinks,hydrateRoomMembers,archive(value){rooms=value;roomMembers.clear();roomSnapshots.clear();render();},session(value,config){unlocked=true;state=value;settings=config;selectedRoom=value.room?.id||null;rooms=value.room?[value.room]:[];if(value.room)roomSnapshots.set(value.room.id,value);document.getElementById("auth-dialog").close();render();}})');
+  app = window.eval(source + '\n;({completeAccount,openEmojis,render,applyTheme,accentTokens,parseColor,contrast,mixColor,handleEvent,loadRoom,refreshMessageTools,openMessageTools,openReactions,openCollection,refreshActivity,refreshDiagnostics,showRecovery,lockAccount,renderEmojiLibrary,normalizeLayout,saveLayout,allRooms,acknowledgeConversation,messageLinks,hydrateRoomMembers,archive(value){rooms=value;roomMembers.clear();roomSnapshots.clear();render();},session(value,config){unlocked=true;state=value;settings=config;selectedRoom=value.room?.id||null;rooms=value.room?[value.room]:[];if(value.room)roomSnapshots.set(value.room.id,value);document.getElementById("auth-dialog").close();render();}})');
   await flush();
-  t.after(async()=>{window.OchatEmoji?.destroy();window.document.body.replaceChildren();await window.happyDOM.abort();window.close();});
   const get=id=>window.document.getElementById(id);
   const session=value=>app.session(value,structuredClone(settings));
   const input=text=>{get('message').value=text;get('message').dispatchEvent(new window.Event('input'));};
   const submit=()=>get('composer').dispatchEvent(new window.Event('submit',{cancelable:true}));
-  return {window,app,calls,get,session,input,submit};
+  fixture={window,app,calls,get,session,input,submit};
+  return fixture;
 }
 
 test('room profiles float independently, keep members visible and restore focus',async t=>{
