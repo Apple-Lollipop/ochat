@@ -1,0 +1,54 @@
+/* Native-inspired settings and action controls, scoped to preserve the chat layout. */
+:root{--control-radius:12px;--preference-radius:18px;--control-timing:180ms}
+.native-preferences{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;background:var(--panel)!important;color:var(--text);border:1px solid var(--line)!important;border-radius:22px!important;box-shadow:0 24px 80px #0004!important}
+#settings-dialog{width:min(860px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:24px;overflow:auto}
+#settings-dialog>h2{font-size:24px;letter-spacing:-.6px;margin:0 0 5px}.preferences-subtitle{font-size:13px;color:var(--muted);margin:0 0 22px}
+#settings-dialog .settings-layout{display:grid;grid-template-columns:166px minmax(0,1fr);gap:24px;min-height:0}
+#settings-dialog .settings-nav{padding:4px;gap:6px;align-self:start;border:0;background:transparent}
+#settings-dialog .settings-nav button{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;text-align:left;padding:10px 12px;border:0;border-radius:11px;color:var(--muted);font-weight:550;background:transparent}
+#settings-dialog .settings-nav button.selected{background:var(--accent);color:var(--accent-foreground);box-shadow:0 2px 5px #0001}
+#settings-dialog .settings-nav button:hover:not(.selected){background:var(--hover);color:var(--text)}
+#settings-dialog .settings-content{min-width:0;max-height:min(64dvh,650px);overflow:auto;padding:2px 8px 12px 2px;scrollbar-width:thin}
+.preference-group{padding:18px;background:var(--field);border:1px solid var(--line);border-radius:var(--preference-radius);margin-bottom:16px;min-width:0}
+.preference-group>h3{font-size:15px;font-weight:650;letter-spacing:-.2px;margin:0 0 18px!important;color:var(--text)}
+.native-preferences label{font-size:13px;font-weight:550;color:var(--text)}
+.native-preferences .field-hint{font-size:12px;line-height:1.55;color:var(--muted);overflow-wrap:anywhere}
+.native-preferences :is(input:not([type=checkbox]):not([type=range]):not([type=color]),select,textarea){border:1px solid var(--line)!important;border-radius:10px!important;background:var(--panel)!important;color:var(--text)!important;padding:10px 12px;min-height:40px;box-shadow:0 1px 2px #00000004;width:100%;max-width:100%;min-width:0}
+.native-preferences :is(input,select,textarea):focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.native-preferences select{cursor:pointer;padding-right:30px!important}
+.native-preferences :is(.checkbox-row,.role-permission label){display:flex;align-items:center;justify-content:space-between;gap:18px;padding:13px 0;margin:0!important;border-bottom:1px solid var(--line);min-height:50px}
+.native-preferences .checkbox-row:last-child,.native-preferences .role-permission label:last-child{border-bottom:0}
+.native-preferences :is(.checkbox-row,.role-permission label)>span{flex:1;order:0;min-width:0;font-weight:500;line-height:1.4}
+.native-preferences input[type=checkbox]{appearance:none!important;-webkit-appearance:none!important;position:relative;flex:0 0 40px;order:1;width:40px!important;height:24px!important;min-height:24px!important;padding:0!important;margin:0!important;border:1px solid var(--line)!important;border-radius:999px!important;background:color-mix(in srgb,var(--muted) 30%,var(--field))!important;cursor:pointer;transition:background var(--control-timing)}
+.native-preferences input[type=checkbox]::after{content:"";display:block;position:absolute;left:2px;top:2px;width:18px;height:18px;background:#fff;border-radius:50%;box-shadow:0 1px 4px #0003;transition:transform var(--control-timing)}
+.native-preferences input[type=checkbox]:checked{background:var(--accent)!important;border-color:var(--accent)!important}.native-preferences input[type=checkbox]:checked::after{transform:translateX(16px)}
+.native-preferences input[type=checkbox]:disabled{opacity:.4;cursor:default}
+.native-preferences input[type=range]{accent-color:var(--accent);height:28px;cursor:pointer;width:100%}
+.native-preferences input[type=range]::-webkit-slider-thumb{cursor:grab}
+.native-preferences :is(.secondary,.primary,.text-button){border-radius:10px!important;min-height:36px;font-weight:550;transition:background var(--control-timing),box-shadow var(--control-timing)}
+.native-preferences .secondary{background:var(--panel)!important;border:1px solid var(--line)!important;color:var(--text)!important;padding:8px 13px}
+.native-preferences .secondary:hover:not(:disabled){background:var(--hover)!important}.native-preferences .primary{background:var(--accent)!important;color:var(--accent-foreground)!important;padding:9px 16px}
+#settings-dialog>.dialog-actions{padding-top:16px;margin-top:6px;border-top:1px solid var(--line);background:var(--panel);position:sticky;bottom:0;z-index:2}
+#settings-dialog .shortcut-row{display:flex;flex-wrap:wrap;gap:8px;padding:12px 0;border-bottom:1px solid var(--line)}#settings-dialog .shortcut-row>label{width:100%}#settings-dialog .shortcut-input{flex:1 1 180px}
+#room-management{width:min(800px,calc(100vw - 24px));padding:24px}
+#room-management>.workspace-heading{position:sticky;top:-24px;padding:16px 0;background:var(--panel);z-index:2;border-bottom:1px solid var(--line)}
+#room-management>section{background:var(--field);padding:18px;border:1px solid var(--line);border-radius:18px;margin-top:16px}
+#room-management h3{font-size:16px;letter-spacing:-.25px;margin:4px 0 16px}#room-management h4{font-size:13px;margin-top:22px}
+#role-members .workspace-member{border-bottom:1px solid var(--line);padding:12px 0}#role-members .workspace-member>select{width:170px;flex:none}#role-members .workspace-member>span{font-size:14px;font-weight:550}
+#role-permissions{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:16px}
+#room-management .role-permission{display:block;background:var(--panel);margin:0;padding:8px 14px 4px;border:1px solid var(--line);border-radius:14px}
+#room-management .role-permission legend{font-size:12px;font-weight:650;color:var(--muted)}#room-management .role-permission label{font-size:13px}
+#room-management .invite-controls{gap:16px}#room-management .invite-controls label{display:block;margin:0 0 14px}
+#room-management #controlled-invitation-output{margin-top:8px;font-size:12px;resize:vertical}
+#room-management .workspace-card{background:var(--panel);border-radius:12px}
+@media(max-width:700px){#settings-dialog{padding:18px}#settings-dialog .settings-layout{grid-template-columns:minmax(0,1fr);gap:14px}#settings-dialog .settings-nav{display:flex;flex-direction:row;overflow-x:auto;padding:4px;background:var(--field);border:1px solid var(--line);border-radius:13px;width:100%}#settings-dialog .settings-nav button{flex:0 0 auto;width:auto;min-height:38px;padding:8px 10px;font-size:12px}#settings-dialog .settings-nav button::before{display:none}#settings-dialog .settings-content{max-height:calc(100dvh - 245px);padding-right:3px}.preference-group{padding:14px;border-radius:14px}#room-management{padding:18px}#room-management>section{padding:14px}#room-management>.workspace-heading{top:-18px}#room-management .invite-controls{grid-template-columns:1fr}#role-members .workspace-member>select{width:145px}}
+@media(prefers-reduced-motion:reduce){.native-preferences *, .message-image-media .message-image-blur{transition:none!important}}
+@media(forced-colors:active){.native-preferences input[type=checkbox]{appearance:auto!important}.native-preferences input[type=checkbox]::after{display:none}.message-image-placeholder{forced-color-adjust:none}}
+.native-preferences fieldset{min-width:0;border:1px solid var(--line);border-radius:13px;padding:14px;margin:16px 0}.native-preferences legend{color:var(--muted);font-size:12px;font-weight:550;padding:0 6px}
+#room-actions-dialog{padding:18px;width:min(390px,calc(100vw - 24px))}#room-actions-dialog>h2{font-size:18px;margin:0 0 14px}#room-actions-dialog>button{margin:4px 0;min-height:40px;text-align:left;padding:10px 12px}#room-actions-dialog>.danger{color:var(--danger)!important}
+#room-actions-dialog .room-illustration-controls{padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--field);margin-bottom:14px}
+#channel-editor-dialog,#room-notifications-dialog{padding:22px;width:min(510px,calc(100vw - 24px))}#channel-editor-dialog h2,#room-notifications-dialog h2{font-size:21px;letter-spacing:-.4px}#channel-editor-dialog .dialog-actions,#room-notifications-dialog .dialog-actions{padding-top:16px;border-top:1px solid var(--line);gap:8px;flex-wrap:wrap}
+
+.audio-shortcuts>summary{cursor:pointer;font-size:14px;font-weight:600;min-height:32px;display:list-item;list-style-position:inside;padding:6px 0}
+.audio-shortcuts[open]>summary{margin-bottom:14px}.audio-processing-options{margin:0;padding:0;border:0}
+#external-link-dialog{width:min(540px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto}#external-link-dialog p{line-height:1.55}.external-link-url{display:block;overflow-wrap:anywhere;white-space:pre-wrap;max-height:120px;overflow:auto;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--field)}#external-link-dialog .dialog-actions{flex-wrap:wrap;gap:8px}

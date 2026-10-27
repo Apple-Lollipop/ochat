@@ -39,6 +39,8 @@ mod channel_node;
 mod contact_presence;
 #[path = "contacts.rs"]
 mod contacts;
+#[path = "file_snapshot.rs"]
+mod file_snapshot;
 #[path = "governance_node.rs"]
 mod governance_node;
 #[path = "inline_image_node.rs"]
@@ -50,6 +52,12 @@ mod personal_emojis;
 #[cfg(test)]
 #[path = "privacy_probes.rs"]
 mod privacy_probes;
+#[path = "security_media.rs"]
+mod security_media;
+#[cfg(test)]
+#[path = "security_regression_tests.rs"]
+mod security_regression_tests;
+use file_snapshot::OfferedSource;
 #[path = "system_audio_node.rs"]
 mod system_audio_node;
 #[path = "visual_node.rs"]
@@ -332,7 +340,7 @@ pub struct ChatNode {
     events: broadcast::Sender<Event>,
     dial: mpsc::Sender<(Uuid, Member)>,
     dial_pending: Mutex<HashSet<(Uuid, String)>>,
-    files: Mutex<HashMap<Uuid, (FileOffer, PathBuf)>>,
+    files: Mutex<HashMap<Uuid, (FileOffer, OfferedSource)>>,
     received: Mutex<HashMap<(String, Uuid), FileOffer>>,
     downloads: Arc<Semaphore>,
     transfer_locks: Mutex<HashMap<Uuid, Weak<tokio::sync::Mutex<()>>>>,
@@ -939,6 +947,7 @@ impl ChatNode {
                     write_frame(
                         &mut send,
                         &Hello {
+                            challenge: [0; 32],
                             admission: None,
                             visual_revision: 3,
                             visual_media: true,
@@ -1062,12 +1071,15 @@ impl ChatNode {
                 let invitation = archive.invitation.clone();
                 probes.spawn(async move {
                     let _ = timeout(Duration::from_secs(3), async {
+                        let remote = member.address.id.to_string();
+                        let challenge = rand::random();
                         let conn = node.endpoint.connect(member.address, ALPN).await?;
                         let (mut send, mut recv) = conn.open_bi().await?;
                         let name = node.name.lock().unwrap().clone();
                         write_frame(
                             &mut send,
                             &Hello {
+                                challenge,
                                 admission: None,
                                 visual_revision: 3,
                                 visual_media: true,
@@ -1077,7 +1089,14 @@ impl ChatNode {
                                 contact_reply_to: None,
                                 avatar_hash: None,
                                 room: invitation.room,
-                                secret: invitation.secret,
+                                secret: room_proof(
+                                    &invitation.secret,
+                                    invitation.room,
+                                    &node.id(),
+                                    &remote,
+                                    &challenge,
+                                    false,
+                                ),
                                 name,
                                 address: node.endpoint.addr(),
                                 ownership: invitation.ownership,
@@ -1124,12 +1143,15 @@ impl ChatNode {
         );
         registry.insert(id, Arc::downgrade(self));
         if let Some(vault) = &self.vault {
-            for (offer, path) in vault
-                .list::<(FileOffer, PathBuf)>(&format!("send_file/{id}/"))?
+            for value in vault
+                .list::<serde_json::Value>(&format!("send_file/{id}/"))?
                 .into_iter()
                 .take(32)
             {
-                self.files.lock().unwrap().insert(offer.id, (offer, path));
+                match file_snapshot::restore(vault, id, value) {
+                    Ok((offer,source)) => {self.files.lock().unwrap().insert(offer.id,(offer,source));}
+                    Err(_) => self.emit(Event::Notice {text:"A saved file offer is no longer available. Create a new file offer to share it again".into()}),
+                }
             }
         }
         Ok(())
@@ -1632,12 +1654,44 @@ impl ChatNode {
             .as_ref()
             .map(|r| r.peers.values().map(|p| p.member.clone()).collect())
             .unwrap_or_default();
+        let room_id = self.room.lock().unwrap().as_ref().map(|r| r.id);
         members.push(Member {
+            admission: room_id.and_then(|id| self.admission_for(id)),
             avatar_hash: self.avatar_hash(),
             address: self.endpoint.addr(),
             name: self.display_name(),
         });
         members
+    }
+
+    fn member_frames(&self) -> Vec<Wire> {
+        let mut frames = Vec::new();
+        let mut batch = Vec::new();
+        for member in self.members() {
+            let mut candidate = batch.clone();
+            candidate.push(member.clone());
+            if candidate.len() > MAX_MEMBERS_PER_FRAME
+                || serde_json::to_vec(&Wire::Members { members: candidate })
+                    .map_or(true, |v| v.len() > MAX_FRAME)
+            {
+                if !batch.is_empty() {
+                    frames.push(Wire::Members {
+                        members: std::mem::take(&mut batch),
+                    });
+                }
+            }
+            if serde_json::to_vec(&Wire::Members {
+                members: vec![member.clone()],
+            })
+            .is_ok_and(|v| v.len() <= MAX_FRAME)
+            {
+                batch.push(member);
+            }
+        }
+        if !batch.is_empty() {
+            frames.push(Wire::Members { members: batch });
+        }
+        frames
     }
 
     async fn connect_member(
@@ -1653,6 +1707,7 @@ impl ChatNode {
         if address.id == self.endpoint.id() {
             return Ok(());
         }
+        let challenge = rand::random();
         let hello = {
             let room = self.room.lock().unwrap();
             let r = room.as_ref().context("Room closed")?;
@@ -1665,6 +1720,7 @@ impl ChatNode {
                 "This direct conversation already has two participants"
             );
             Hello {
+                challenge,
                 admission: self.admission_for(room_id),
                 visual_revision: 3,
                 visual_media: true,
@@ -1677,7 +1733,14 @@ impl ChatNode {
                 probe: false,
                 deletion: None,
                 room: r.id,
-                secret: r.secret,
+                secret: room_proof(
+                    &r.secret,
+                    r.id,
+                    &self.id(),
+                    &address.id.to_string(),
+                    &challenge,
+                    false,
+                ),
                 name: self.display_name(),
                 address: self.endpoint.addr(),
             }
@@ -1695,6 +1758,10 @@ impl ChatNode {
                 welcome.ownership == hello.ownership,
                 "Room ownership does not match the invitation. Ask for an updated invitation"
             );
+            let secret = self.room.lock().unwrap().as_ref().context("Room closed")?.secret;
+            let expected = room_proof(&secret, room_id, &address.id.to_string(), &self.id(), &challenge, true);
+            ensure!(welcome.proof.is_some_and(|p| bool::from(expected.ct_eq(&p))), "The remote participant could not prove room access. Update Ochat and request a new invitation");
+            self.authorize_member(room_id, &address.id.to_string(), welcome.admission.as_ref())?;
             clean_name(&welcome.name)?;
             ensure!(
                 welcome.members.len() <= MAX_MEMBERS_PER_FRAME,
@@ -1728,6 +1795,7 @@ impl ChatNode {
             }
         };
         let member = Member {
+            admission: welcome.admission,
             avatar_hash: welcome.avatar_hash,
             address,
             name: welcome.name,
@@ -1781,6 +1849,8 @@ impl ChatNode {
             write_frame(
                 &mut send,
                 &Welcome {
+                    proof: None,
+                    admission: None,
                     visual_revision: 3,
                     visual_media: true,
                     message_tools: true,
@@ -1809,14 +1879,25 @@ impl ChatNode {
                 .flatten()
                 .context("Room is unavailable")?;
             ensure!(
-                bool::from(archive.invitation.secret.ct_eq(&hello.secret))
-                    && archive.invitation.ownership == hello.ownership,
+                bool::from(
+                    room_proof(
+                        &archive.invitation.secret,
+                        hello.room,
+                        &hello.address.id.to_string(),
+                        &self.id(),
+                        &hello.challenge,
+                        false
+                    )
+                    .ct_eq(&hello.secret)
+                ) && archive.invitation.ownership == hello.ownership,
                 "Access denied"
             );
             let name = self.display_name();
             write_frame(
                 &mut send,
                 &Welcome {
+                    proof: None,
+                    admission: None,
                     visual_revision: 3,
                     visual_media: true,
                     message_tools: true,
@@ -1857,7 +1938,18 @@ impl ChatNode {
             let room = self.room.lock().unwrap();
             let r = room.as_ref().context("No active room")?;
             ensure!(
-                r.id == hello.room && bool::from(r.secret.ct_eq(&hello.secret)),
+                r.id == hello.room
+                    && bool::from(
+                        room_proof(
+                            &r.secret,
+                            r.id,
+                            &hello.address.id.to_string(),
+                            &self.id(),
+                            &hello.challenge,
+                            false
+                        )
+                        .ct_eq(&hello.secret)
+                    ),
                 "Access denied"
             );
             ensure!(
@@ -1882,7 +1974,23 @@ impl ChatNode {
             .unwrap()
             .as_ref()
             .and_then(|r| r.ownership.clone());
-        let welcome = Welcome {
+        let secret = self
+            .room
+            .lock()
+            .unwrap()
+            .as_ref()
+            .context("Room closed")?
+            .secret;
+        let mut welcome = Welcome {
+            proof: Some(room_proof(
+                &secret,
+                hello.room,
+                &self.id(),
+                &hello.address.id.to_string(),
+                &hello.challenge,
+                true,
+            )),
+            admission: self.admission_for(hello.room),
             visual_revision: 3,
             visual_media: true,
             message_tools: true,
@@ -1896,11 +2004,15 @@ impl ChatNode {
                 .take(MAX_MEMBERS_PER_FRAME)
                 .collect(),
         };
+        while serde_json::to_vec(&welcome)?.len() > MAX_FRAME && !welcome.members.is_empty() {
+            welcome.members.pop();
+        }
         write_frame(&mut send, &welcome).await?;
         self.install_peer(
             hello.room,
             conn,
             Member {
+                admission: hello.admission,
                 avatar_hash: hello.avatar_hash,
                 address: hello.address,
                 name,
@@ -1991,10 +2103,8 @@ impl ChatNode {
             });
         }
         let edits: Vec<_> = self.bank(room_id).values().cloned().collect();
-        for members in self.members().chunks(MAX_MEMBERS_PER_FRAME) {
-            let _ = tx.try_send(Wire::Members {
-                members: members.to_vec(),
-            });
+        for introduction in self.member_frames() {
+            let _ = tx.try_send(introduction);
         }
         for changes in edits.chunks(32) {
             let _ = tx.try_send(Wire::EmojiChanges {
@@ -2180,6 +2290,7 @@ impl ChatNode {
                 {
                     continue;
                 }
+                let direct = n.snapshot().room.is_some_and(|r| r.capacity == 2);
                 let valid = n
                     .room
                     .lock()
@@ -2191,7 +2302,7 @@ impl ChatNode {
                             && p.voice_session
                                 .or(permitted)
                                 .is_some_and(|session| bytes[16..32] == *session.as_bytes())
-                            && (p.voice_channel.is_none() || p.voice_channel == permitted)
+                            && Self::peer_media_scope(p, permitted.unwrap(), direct)
                             && p.conn.stable_id() == stable_id
                     });
                 if !valid {
@@ -2260,7 +2371,14 @@ impl ChatNode {
             .map(|r| r.peers.keys().cloned().collect())
             .unwrap_or_default();
         for member in members {
-            if self.is_blocked(&member.address.id.to_string()) {
+            if self
+                .authorize_member(
+                    room,
+                    &member.address.id.to_string(),
+                    member.admission.as_ref(),
+                )
+                .is_err()
+            {
                 continue;
             }
             if member.address.id != self.endpoint.id() && clean_name(&member.name).is_ok() {
@@ -2470,6 +2588,9 @@ impl ChatNode {
                 active,
                 started_at,
             } => {
+                if active && !self.room_permissions(peer).calls {
+                    return Ok(());
+                }
                 if !self
                     .list_channels()?
                     .iter()
@@ -2498,7 +2619,7 @@ impl ChatNode {
                     }
                 }
                 self.refresh_channel_clocks(Some((channel, started_at)));
-                self.handle_wire(room_id, peer, Wire::Voice { active, started_at }, seen)?;
+                self.apply_voice_state(peer, active, started_at);
             }
             Wire::SpeakingChannel {
                 channel,
@@ -2521,63 +2642,16 @@ impl ChatNode {
                 }
             }
             Wire::Voice { active, started_at } => {
-                if let Some(p) = self
+                // Legacy unscoped announcements cannot change a room channel.
+                if self
                     .room
                     .lock()
                     .unwrap()
-                    .as_mut()
-                    .and_then(|r| r.peers.get_mut(peer))
+                    .as_ref()
+                    .is_some_and(|r| r.capacity == 2)
                 {
-                    p.voice = active;
-                    if !active {
-                        p.speaking_until = 0;
-                    }
+                    self.apply_voice_state(peer, active, started_at);
                 }
-                if active {
-                    let controls: Vec<_> = self
-                        .visual
-                        .lock()
-                        .unwrap()
-                        .local
-                        .values()
-                        .cloned()
-                        .collect();
-                    let capable = self
-                        .room
-                        .lock()
-                        .unwrap()
-                        .as_ref()
-                        .and_then(|r| r.peers.get(peer))
-                        .is_some_and(|p| p.visual_media);
-                    let same_channel = self
-                        .room
-                        .lock()
-                        .unwrap()
-                        .as_ref()
-                        .and_then(|r| r.peers.get(peer))
-                        .is_some_and(|p| p.voice_channel == self.channels.lock().unwrap().voice);
-                    if capable && same_channel {
-                        for control in controls {
-                            if self
-                                .room
-                                .lock()
-                                .unwrap()
-                                .as_ref()
-                                .and_then(|r| r.peers.get(peer))
-                                .is_some_and(|p| p.visual_revision >= control.profile.revision())
-                            {
-                                let _ = self.send_peer(peer, Wire::Visual { control });
-                            }
-                        }
-                    }
-                } else {
-                    if let Some(audio) = self.audio.lock().unwrap().as_ref() {
-                        audio.remove_system_audio(peer);
-                    }
-                    self.clear_peer_visual(peer);
-                }
-                self.update_voice_clock(active, started_at);
-                self.emit_state();
             }
             Wire::Speaking { active } => {
                 let changed = {
@@ -2731,6 +2805,69 @@ impl ChatNode {
         }
         sent
     }
+    fn apply_voice_state(&self, peer: &str, active: bool, started_at: Option<u64>) {
+        if active && !self.accept_voice_state(peer) {
+            return;
+        }
+        if let Some(p) = self
+            .room
+            .lock()
+            .unwrap()
+            .as_mut()
+            .and_then(|r| r.peers.get_mut(peer))
+        {
+            p.voice = active;
+            if !active {
+                p.speaking_until = 0;
+            }
+        }
+        if active {
+            let controls: Vec<_> = self
+                .visual
+                .lock()
+                .unwrap()
+                .local
+                .values()
+                .cloned()
+                .collect();
+            let capable = self
+                .room
+                .lock()
+                .unwrap()
+                .as_ref()
+                .and_then(|r| r.peers.get(peer))
+                .is_some_and(|p| p.visual_media);
+            let same_channel = self
+                .room
+                .lock()
+                .unwrap()
+                .as_ref()
+                .and_then(|r| r.peers.get(peer))
+                .is_some_and(|p| p.voice_channel == self.channels.lock().unwrap().voice);
+            if capable && same_channel {
+                for control in controls {
+                    if self
+                        .room
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .and_then(|r| r.peers.get(peer))
+                        .is_some_and(|p| p.visual_revision >= control.profile.revision())
+                    {
+                        let _ = self.send_peer(peer, Wire::Visual { control });
+                    }
+                }
+            }
+        } else {
+            if let Some(audio) = self.audio.lock().unwrap().as_ref() {
+                audio.remove_system_audio(peer);
+            }
+            self.clear_peer_visual(peer);
+        }
+        self.update_voice_clock(active, started_at);
+        self.emit_state();
+    }
+
     async fn broadcast_members(&self) {
         if let Some(room) = self.snapshot().room {
             let members = self
@@ -2742,11 +2879,8 @@ impl ChatNode {
                 .collect();
             self.queue_members(room.id, members);
         }
-        for members in self.members().chunks(MAX_MEMBERS_PER_FRAME) {
-            self.broadcast(Wire::Members {
-                members: members.to_vec(),
-            })
-            .await;
+        for introduction in self.member_frames() {
+            self.broadcast(introduction).await;
         }
     }
 
@@ -2911,31 +3045,26 @@ impl ChatNode {
             self.files.lock().unwrap().len() < 32,
             "You can offer up to 32 files per session"
         );
-        let mut file = tokio::fs::File::open(&path).await?;
-        let meta = file.metadata().await?;
-        ensure!(
-            meta.is_file() && meta.len() <= MAX_FILE,
-            "Choose a file no larger than 2 GiB"
-        );
-        let mut hash = blake3::Hasher::new();
-        let mut buffer = vec![0; 64 * 1024];
-        loop {
-            let len = file.read(&mut buffer).await?;
-            if len == 0 {
-                break;
-            }
-            hash.update(&buffer[..len]);
-        }
+        let id = Uuid::new_v4();
+        let name = path
+            .file_name()
+            .context("Missing file name")?
+            .to_string_lossy()
+            .to_string();
+        let directory = self
+            .vault
+            .as_ref()
+            .map(|v| v.directory().join("file-staging").join(room_id.to_string()));
+        let (source, size, hash) = tokio::task::spawn_blocking(move || {
+            file_snapshot::StagedFile::capture(&path, directory.as_deref(), id)
+        })
+        .await??;
         let offer = FileOffer {
             channel,
-            id: Uuid::new_v4(),
-            name: path
-                .file_name()
-                .context("Missing file name")?
-                .to_string_lossy()
-                .into(),
-            size: meta.len(),
-            hash: hash.finalize().to_hex().to_string(),
+            id,
+            name,
+            size,
+            hash,
         };
         offer.validate()?;
         self.accept_text_channel(channel)?;
@@ -2943,16 +3072,13 @@ impl ChatNode {
             self.snapshot().room.is_some_and(|r| r.id == room_id),
             "Room closed"
         );
+        if let Some(vault) = &self.vault {
+            source.persist(vault, room_id, &offer)?;
+        }
         self.files
             .lock()
             .unwrap()
-            .insert(offer.id, (offer.clone(), path.clone()));
-        if let Some(vault) = &self.vault {
-            vault.put(
-                &format!("send_file/{room_id}/{}", offer.id),
-                &(offer.clone(), path),
-            )?;
-        }
+            .insert(id, (offer.clone(), OfferedSource::Stage(source)));
         self.broadcast(Wire::File {
             offer: offer.clone(),
         })
@@ -3083,28 +3209,45 @@ impl ChatNode {
             return Ok(());
         }
         let requested_id = request.id.context("Invalid resource request")?;
-        let (offer, path) = self
+        let (offer, source) = self
             .files
             .lock()
             .unwrap()
             .get(&requested_id)
             .cloned()
             .context("File is no longer available")?;
-        let mut file = tokio::fs::File::open(path).await?;
+        let stage = match source {
+            OfferedSource::Stage(stage) => stage,
+            OfferedSource::Legacy(path) => {
+                let directory = self
+                    .vault
+                    .as_ref()
+                    .map(|v| v.directory().join("file-staging").join(room_id.to_string()));
+                let (stage, size, hash) = tokio::task::spawn_blocking(move || {
+                    file_snapshot::StagedFile::capture(&path, directory.as_deref(), requested_id)
+                })
+                .await??;
+                ensure!(
+                    size == offer.size && hash == offer.hash,
+                    "The source file changed. Create a new file offer"
+                );
+                if let Some(v) = &self.vault {
+                    stage.persist(v, room_id, &offer)?;
+                }
+                self.files.lock().unwrap().insert(
+                    offer.id,
+                    (offer.clone(), OfferedSource::Stage(stage.clone())),
+                );
+                stage
+            }
+        };
         ensure!(request.offset <= offer.size, "Invalid resume offset");
         if request.offset > 0 {
-            let mut remaining = request.offset;
-            let mut hasher = blake3::Hasher::new();
-            let mut buffer = vec![0; 64 * 1024];
-            while remaining > 0 {
-                let limit = (remaining as usize).min(buffer.len());
-                let read = file.read(&mut buffer[..limit]).await?;
-                ensure!(read > 0, "Source file changed");
-                hasher.update(&buffer[..read]);
-                remaining -= read as u64;
-            }
+            let stage = stage.clone();
+            let offset = request.offset;
+            let hash = tokio::task::spawn_blocking(move || stage.prefix_hash(offset)).await??;
             ensure!(
-                request.prefix_hash.as_deref() == Some(hasher.finalize().to_hex().as_str()),
+                request.prefix_hash.as_deref() == Some(hash.as_str()),
                 "Partial file differs from the source. Cancel this transfer and download it again"
             );
         }
@@ -3116,21 +3259,17 @@ impl ChatNode {
             name: self.peer_name(peer),
             accepted: true,
         });
-        ensure!(
-            file.metadata().await?.len() == offer.size,
-            "File changed after it was offered"
-        );
         write_frame(&mut send, &offer).await?;
-        let mut buf = vec![0; 64 * 1024];
         let mut count = request.offset;
         let mut update = Instant::now();
         let result: Result<()> = async {
             while count < offer.size {
-                let limit = (offer.size - count).min(buf.len() as u64) as usize;
-                let len = file.read(&mut buf[..limit]).await?;
-                ensure!(len > 0, "File was truncated");
-                timeout(Duration::from_secs(30), send.write_all(&buf[..len])).await??;
-                count += len as u64;
+                let source = stage.clone();
+                let position = count;
+                let buf = tokio::task::spawn_blocking(move || source.read_at(position)).await??;
+                ensure!(!buf.is_empty(), "Encrypted file snapshot was truncated");
+                timeout(Duration::from_secs(30), send.write_all(&buf)).await??;
+                count += buf.len() as u64;
                 if update.elapsed() > Duration::from_millis(200) {
                     self.progress(&offer, peer, count, "sending");
                     update = Instant::now();
@@ -4312,6 +4451,7 @@ impl ChatNode {
         Ok(())
     }
     fn finish_call(&self, reason: EndReason) {
+        let announcement = self.voice_wire(false);
         self.clear_visual();
         self.deafened.store(false, Ordering::Release);
         let ended_view = self.call.lock().unwrap().as_ref().map(|c| c.view.clone());
@@ -4344,10 +4484,7 @@ impl ChatNode {
             .map(|r| r.peers.values().map(|p| p.tx.clone()).collect())
             .unwrap_or_default();
         for tx in peers {
-            let _ = tx.try_send(Wire::Voice {
-                active: false,
-                started_at: None,
-            });
+            let _ = tx.try_send(announcement.clone());
         }
         self.emit(Event::CallEnded {
             room: self.snapshot().room.map(|r| r.id),
@@ -4508,12 +4645,8 @@ impl ChatNode {
                     .map(|r| {
                         r.peers
                             .values()
-                            .filter(|p| {
-                                p.voice
-                                    && (p.voice_channel.is_none()
-                                        || p.voice_channel == Some(media_id))
-                            })
-                            .map(|p| p.conn.clone())
+                            .filter(|p| Self::peer_media_scope(p, media_id, r.capacity == 2))
+                            .map(|p| (p.member.address.id.to_string(), p.conn.clone()))
                             .collect()
                     })
                     .unwrap_or_default();
@@ -4523,7 +4656,10 @@ impl ChatNode {
                 framed.extend_from_slice(session.as_bytes());
                 framed.extend_from_slice(&packet);
                 let framed = bytes::Bytes::from(framed);
-                for conn in conns {
+                for (peer, conn) in conns {
+                    if !n.media_peer_allowed(&peer, media_id) {
+                        continue;
+                    }
                     if conn.send_datagram(framed.clone()).is_ok() {
                         n.transport.queued.fetch_add(1, Ordering::Relaxed);
                     } else {
@@ -4604,6 +4740,24 @@ fn now() -> u64 {
 
 #[cfg(test)]
 mod tests {
+    fn test_voice_wire(node: &ChatNode, active: bool, started_at: Option<u64>) -> Wire {
+        let room = node.snapshot().room.unwrap();
+        if room.capacity == 2 {
+            return Wire::Voice { active, started_at };
+        }
+        let channel =
+            crate::channels::default_channel(room.id, crate::channels::ChannelKind::Voice).id;
+        let mut state = node.channels.lock().unwrap();
+        state.voice = Some(channel);
+        let session = *state.session.get_or_insert_with(Uuid::new_v4);
+        Wire::VoiceChannel {
+            channel,
+            session,
+            active,
+            started_at,
+        }
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn a_simultaneous_authenticated_connection_survives_the_redundant_join_closing() {
         use super::*;
@@ -4642,7 +4796,16 @@ mod tests {
         write_frame(
             &mut send,
             &Hello {
+                challenge: [0; 32],
                 admission: None,
+                secret: room_proof(
+                    &invitation.secret,
+                    invitation.room,
+                    &peer.id().to_string(),
+                    &node.id(),
+                    &[0; 32],
+                    false,
+                ),
                 address: peer.addr(),
                 name: "Existing peer".into(),
                 ..hello
@@ -4841,10 +5004,7 @@ mod tests {
         bob.join(&invitation).await.unwrap();
         let start = now() - 2000;
         alice
-            .broadcast(Wire::Voice {
-                active: true,
-                started_at: Some(start),
-            })
+            .broadcast(test_voice_wire(&alice, true, Some(start)))
             .await;
         timeout(Duration::from_secs(5), async {
             while bob.snapshot().voice_started_at != Some(start) {
@@ -4888,12 +5048,7 @@ mod tests {
         assert!(!bob.snapshot().peers[0].speaking);
         *bob.audio.lock().unwrap() = Some(AudioSession::test_receiver());
         bob.update_voice_clock(true, None);
-        alice
-            .broadcast(Wire::Voice {
-                active: false,
-                started_at: None,
-            })
-            .await;
+        alice.broadcast(test_voice_wire(&alice, false, None)).await;
         timeout(Duration::from_secs(5), async {
             while bob.snapshot().peers[0].voice {
                 tokio::time::sleep(Duration::from_millis(20)).await;
@@ -4929,11 +5084,7 @@ mod tests {
         for node in [&alice, &bob] {
             *node.audio.lock().unwrap() = Some(AudioSession::test_receiver());
             node.emit_state();
-            node.broadcast(Wire::Voice {
-                active: true,
-                started_at: None,
-            })
-            .await;
+            node.broadcast(test_voice_wire(&node, true, None)).await;
         }
         timeout(Duration::from_secs(5), async {
             while !alice
@@ -4969,12 +5120,7 @@ mod tests {
         // A different room is selected/observed by a desktop; these sessions
         // still notify independently, including a muted participant.
         alice.muted.store(true, Ordering::Relaxed);
-        carol
-            .broadcast(Wire::Voice {
-                active: true,
-                started_at: None,
-            })
-            .await;
+        carol.broadcast(test_voice_wire(&carol, true, None)).await;
         timeout(Duration::from_secs(5), async {
             while !alice
                 .snapshot()
@@ -5000,32 +5146,17 @@ mod tests {
         for node in [&alice, &bob] {
             assert_eq!(tones(node), vec![crate::audio::voice_cue_samples(true)]);
         }
-        carol
-            .broadcast(Wire::Voice {
-                active: true,
-                started_at: None,
-            })
-            .await;
+        carol.broadcast(test_voice_wire(&carol, true, None)).await;
         tokio::time::sleep(Duration::from_millis(60)).await;
         assert!(tones(&alice).is_empty());
         assert!(tones(&bob).is_empty());
-        carol
-            .broadcast(Wire::Voice {
-                active: false,
-                started_at: None,
-            })
-            .await;
+        carol.broadcast(test_voice_wire(&carol, false, None)).await;
         tokio::time::sleep(Duration::from_millis(100)).await;
         for node in [&alice, &bob] {
             assert_eq!(tones(node), vec![crate::audio::voice_cue_samples(false)]);
         }
         bob.settings.lock().unwrap().voice_join_sound = false;
-        carol
-            .broadcast(Wire::Voice {
-                active: true,
-                started_at: None,
-            })
-            .await;
+        carol.broadcast(test_voice_wire(&carol, true, None)).await;
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert_eq!(tones(&alice), vec![crate::audio::voice_cue_samples(true)]);
         assert!(tones(&bob).is_empty());
@@ -5101,12 +5232,7 @@ mod tests {
             .unwrap()
             .accept(&alice.id(), call_id, true, now())
             .unwrap();
-        alice
-            .broadcast(Wire::Voice {
-                active: true,
-                started_at: None,
-            })
-            .await;
+        alice.broadcast(test_voice_wire(&alice, true, None)).await;
         tokio::time::sleep(Duration::from_millis(75)).await;
         sender.send_datagram(bytes::Bytes::from(framed)).unwrap();
         timeout(Duration::from_secs(5), async {

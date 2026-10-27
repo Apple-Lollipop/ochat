@@ -19,6 +19,10 @@ impl ChatNode {
             control.kind != VisualKind::SystemAudio && self.visual_media_id()? == control.media,
             "This stream has ended"
         );
+        ensure!(
+            self.media_peer_allowed(peer, control.media),
+            "This participant cannot access this media session"
+        );
         let capable = self
             .snapshot()
             .peers
@@ -94,6 +98,10 @@ impl ChatNode {
                 .any(|p| p.id == peer && p.voice && p.visual_revision >= 3),
             "Stream watching was not negotiated"
         );
+        ensure!(
+            self.media_peer_allowed(peer, control.media),
+            "This participant cannot access this media session"
+        );
         let mut visual = self.visual.lock().unwrap();
         ensure!(
             visual
@@ -121,6 +129,10 @@ impl ChatNode {
         Ok(())
     }
     pub(super) fn receive_visual_keyframe(&self, peer: &str, control: VisualControl) -> Result<()> {
+        ensure!(
+            self.media_peer_allowed(peer, control.media),
+            "This participant cannot access this media session"
+        );
         let mut visual = self.visual.lock().unwrap();
         let slot = (peer.into(), control.kind);
         ensure!(
@@ -266,11 +278,14 @@ impl ChatNode {
         }
     }
     pub(super) fn broadcast_visual(&self, control: VisualControl) {
+        let policy = self.room_policy();
         if let Some(room) = self.room.lock().unwrap().as_ref() {
             for peer in room.peers.values().filter(|p| {
                 p.visual_revision >= control.profile.revision()
-                    && p.voice
-                    && (p.voice_channel.is_none() || p.voice_channel == Some(control.media))
+                    && Self::peer_media_scope(p, control.media, room.capacity == 2)
+                    && policy
+                        .as_ref()
+                        .is_none_or(|policy| policy.access(&p.member.address.id.to_string()).calls)
             }) {
                 let _ = peer.tx.try_send(Wire::Visual {
                     control: control.clone(),
@@ -368,6 +383,10 @@ impl ChatNode {
         if sequence % u64::from(control.profile.fps) == 0 {
             self.broadcast_visual(control.clone());
         }
+        ensure!(
+            self.room_permissions(&self.id()).calls,
+            "Your role cannot share media"
+        );
         let viewers = self.visual.lock().unwrap().viewers.clone();
         let (room, peers) = {
             let room = self.room.lock().unwrap();
@@ -383,14 +402,13 @@ impl ChatNode {
                             (control.kind, Some(control.session))
                         };
                         p.visual_revision >= 3
-                            && p.voice
-                            && (p.voice_channel.is_none() || p.voice_channel == Some(control.media))
+                            && Self::peer_media_scope(p, control.media, r.capacity == 2)
                             && viewers
                                 .get(&(p.member.address.id.to_string(), kind))
                                 .copied()
                                 == session
                     })
-                    .map(|p| p.conn.clone())
+                    .map(|p| (p.member.address.id.to_string(), p.conn.clone()))
                     .collect::<Vec<_>>(),
             )
         };
@@ -404,7 +422,10 @@ impl ChatNode {
         });
         let bytes = Arc::new(bytes);
         let mut writes = tokio::task::JoinSet::new();
-        for conn in peers {
+        for (peer, conn) in peers {
+            if !self.media_peer_allowed(&peer, header.control.media) {
+                continue;
+            }
             let header = header.clone();
             let bytes = bytes.clone();
             writes.spawn(async move {
@@ -440,6 +461,9 @@ impl ChatNode {
         control: VisualControl,
     ) -> Result<()> {
         control.profile.validate()?;
+        if !self.media_peer_allowed(peer, control.media) {
+            return Ok(());
+        }
         let current = self
             .room
             .lock()
@@ -448,10 +472,8 @@ impl ChatNode {
             .and_then(|r| r.peers.get(peer))
             .is_some_and(|p| {
                 p.voice
-                    && p.voice_session
-                        .is_none_or(|session| control.connection == Some(session))
-                    && p.voice_channel
-                        .is_none_or(|channel| control.media == channel)
+                    && p.voice_session == control.connection
+                    && (p.voice_channel.is_none() || p.voice_channel == Some(control.media))
             });
         if !current {
             return Ok(());
@@ -580,6 +602,10 @@ impl ChatNode {
         stable_id: usize,
         mut stream: RecvStream,
     ) -> Result<()> {
+        ensure!(
+            self.room_permissions(peer).calls && self.room_permissions(&self.id()).calls,
+            "Media permission was revoked"
+        );
         let header: VisualHeader =
             timeout(Duration::from_millis(500), read_frame(&mut stream)).await??;
         ensure!(
@@ -599,8 +625,7 @@ impl ChatNode {
                 .and_then(|r| r.peers.get(peer))
                 .is_some_and(|p| p.visual_revision >= header.control.profile.revision()
                     && p.voice
-                    && p.voice_session
-                        .is_none_or(|session| header.control.connection == Some(session))
+                    && p.voice_session == header.control.connection
                     && p.voice_channel
                         .is_none_or(|channel| header.control.media == channel)
                     && p.conn.stable_id() == stable_id),
@@ -641,12 +666,20 @@ impl ChatNode {
                 "Excessive visual packet rate"
             );
         }
+        ensure!(
+            self.media_peer_allowed(peer, header.control.media),
+            "Media permission was revoked"
+        );
         let mut bytes = vec![0; header.length];
         timeout(Duration::from_millis(500), stream.read_exact(&mut bytes)).await??;
         crate::visual::validate_packet(&header.control, &bytes, header.key)?;
         ensure!(
             self.visual_media_id()? == header.control.media,
             "Call ended"
+        );
+        ensure!(
+            self.media_peer_allowed(peer, header.control.media),
+            "Media permission was revoked"
         );
         let mut visual = self.visual.lock().unwrap();
         let watched_kind = if header.control.kind == VisualKind::SystemAudio {
@@ -735,6 +768,9 @@ mod tests {
                 started_at: None,
             })
             .await;
+        }
+        for node in [&alice, &bob] {
+            node.broadcast(node.voice_wire(true)).await;
         }
         timeout(Duration::from_secs(5), async {
             while !alice.snapshot().peers[0].voice || !bob.snapshot().peers[0].voice {

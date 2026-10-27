@@ -1,0 +1,55 @@
+/* Stream geometry owns its available height; playback controls never scroll away. */
+.discord-shell #visual-stage{
+ display:flex;flex-direction:column;flex:0 1 var(--stream-stage-height,320px);height:var(--stream-stage-height,320px);
+ min-height:0;max-height:none;padding:10px 14px;overflow:hidden;box-sizing:border-box;
+ background:var(--panel);border-bottom:1px solid var(--line);
+}
+.discord-shell #visual-stage[hidden]{display:none}
+.discord-shell .visual-heading{display:flex;align-items:center;flex:0 0 auto;gap:10px;min-height:24px;margin-bottom:6px;font-size:12px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.discord-shell .visual-heading>strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-size:12px}
+.discord-shell .visual-heading>span{color:var(--muted);font-size:11px}
+.discord-shell .visual-heading .text-button{flex-shrink:0;min-height:28px;padding:3px 5px;font-size:11px}
+.discord-shell #visual-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:10px;flex:1;min-height:0;overflow:auto;scrollbar-width:thin;align-items:start}
+.discord-shell #visual-grid[hidden]{display:none}
+.discord-shell .visual-card{position:relative;display:flex;flex-direction:column;align-items:stretch;min-width:0;margin:0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--field);box-shadow:0 2px 8px #0001}
+.discord-shell .visual-surface{position:relative;flex:0 0 150px;height:150px;min-height:0;overflow:hidden;background:#101114;border-bottom:1px solid var(--line)}
+.discord-shell .visual-surface>:is(video,.video-image,.video-canvas){position:absolute;inset:0;display:block;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;background:#101114}
+.discord-shell .local-camera .visual-surface>video{transform:scaleX(-1)}
+.discord-shell .visual-surface .video-status{position:absolute;inset:0;display:grid;place-items:center;margin:0;padding:16px;background:transparent;text-align:center;color:#c7c9d1;font-size:12px;line-height:1.5}
+.discord-shell .visual-card figcaption{display:flex;flex-wrap:wrap;align-items:center;flex:0 0 auto;gap:7px;min-width:0;padding:9px 11px;background:var(--field);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.discord-shell .visual-card figcaption>span:first-child{flex:1 1 100%;min-width:0;max-width:100%;overflow-wrap:anywhere;font-size:12px;font-weight:600;line-height:1.4}
+.discord-shell .visual-card-tools{display:flex;align-items:center;flex-wrap:wrap;gap:5px;min-width:0}
+.discord-shell :is(.visual-expand,.visual-watch){border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-height:30px;background:var(--panel);color:var(--text);font-size:11px;line-height:1.2;font-weight:550}
+.discord-shell .visual-watch{background:var(--accent);border-color:var(--accent);color:var(--accent-foreground)}
+.discord-shell .visual-expand:hover:not(:disabled){background:var(--hover)}
+.discord-shell .visual-focus[aria-pressed=true]{color:var(--accent);border-color:var(--accent)}
+.discord-shell .stream-volume{display:flex;align-items:center;gap:8px;width:100%;margin:0;padding-top:6px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+.discord-shell .stream-volume input{flex:1;min-width:40px;width:90px;height:22px;accent-color:var(--accent)}
+.discord-shell .stream-volume output{flex:0 0 36px;text-align:right}
+/* A focused card is one bounded layout: fitted image above a fixed control footer. */
+.discord-shell #visual-grid.has-focus{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);overflow:hidden;align-items:stretch}
+.discord-shell #visual-grid.has-focus .visual-card:not(.visual-focused){display:none}
+.discord-shell #visual-grid.has-focus .visual-focused{height:100%;min-height:0;border-color:var(--accent)}
+.discord-shell #visual-grid.has-focus .visual-focused .visual-surface{flex:1 1 0;height:auto;min-height:0}
+.discord-shell #visual-grid.has-focus .visual-focused figcaption>span:first-child{display:none}
+.channel-navigation[data-voice-view=true][data-visual-active=true] #voice-channel-view{display:flex;align-items:center;gap:8px;flex:0 0 auto;min-height:0;max-height:62px;padding:6px 12px;overflow:hidden}
+.channel-navigation[data-voice-view=true][data-visual-active=true] #voice-channel-view>h2,.channel-navigation[data-voice-view=true][data-visual-active=true] #voice-channel-view>.field-hint{display:none}
+.channel-navigation[data-voice-view=true][data-visual-active=true] .voice-channel-participants{display:flex;flex:1;gap:8px;min-width:0;margin:0;overflow-x:auto}
+.channel-navigation[data-voice-view=true][data-visual-active=true] .voice-channel-person{display:flex;align-items:center;flex:0 0 auto;flex-direction:row;gap:6px;min-height:38px;padding:4px 7px;border:1px solid var(--line);border-radius:10px;white-space:nowrap}
+.channel-navigation[data-voice-view=true][data-visual-active=true] .voice-channel-person .avatar{width:28px;height:28px;min-width:28px;flex-shrink:0;font-size:12px}
+.channel-navigation[data-voice-view=true][data-visual-active=true] #voice-channel-view>button{flex-shrink:0;max-width:100px;font-size:11px}
+.discord-shell .visual-card:fullscreen{display:flex!important;height:100%;border:0;border-radius:0;max-height:none}
+.discord-shell .visual-card:fullscreen .visual-surface{flex:1 1 0;height:auto;min-height:0}
+.discord-shell .visual-card:fullscreen figcaption>span:first-child{display:block}
+@media(max-width:700px){
+ .discord-shell #visual-stage{padding:6px 8px}.discord-shell .visual-heading{margin-bottom:4px;min-height:22px}.discord-shell .visual-heading>span{display:none}
+ .discord-shell #visual-grid{gap:8px;grid-template-columns:1fr}.discord-shell .visual-card{border-radius:10px}
+ .discord-shell .visual-card figcaption{padding:6px 8px;gap:4px}.discord-shell :is(.visual-expand,.visual-watch){min-height:28px;padding:5px 7px;font-size:10px}
+ .discord-shell .stream-volume{gap:7px;padding-top:4px}.discord-shell .stream-volume input{height:18px}
+}
+
+@media(max-height:650px) and (max-width:899px){
+ .discord-shell[data-stream-focused=true] #conversation-panel{padding-bottom:6px}
+ .discord-shell[data-stream-focused=true] #timeline{padding-top:0;padding-bottom:0;min-height:0}
+ .discord-shell[data-stream-focused=true] #typing-status:empty,.discord-shell[data-stream-focused=true] .composer-note{display:none}
+}

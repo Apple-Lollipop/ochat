@@ -151,7 +151,7 @@ impl ChatNode {
             .and_then(|r| r.ownership.clone().map(|o| (r.id, o)))
             .context("This room has no verified owner")?;
         let revision = self.room_policy().map_or(1, |p| p.revision + 1);
-        let policy = Policy::create(
+        let mut policy = Policy::create(
             self.endpoint.secret_key(),
             owner,
             room,
@@ -159,6 +159,25 @@ impl ChatNode {
             roles,
             permissions,
         )?;
+        // Bootstrap only authenticated live peers and previously verified admissions.
+        let mut approved = self
+            .room_policy()
+            .map(|p| p.approved_members)
+            .unwrap_or_default();
+        if let Some(current) = self.room.lock().unwrap().as_ref() {
+            approved.extend(current.peers.keys().cloned());
+        }
+        for ((r, peer), admission) in &self.governance.lock().unwrap().admissions {
+            if *r == room
+                && admission.peer == *peer
+                && admission.room == room
+                && admission.policy.ownership == policy.ownership
+                && admission.validate().is_ok()
+            {
+                approved.insert(peer.clone());
+            }
+        }
+        policy.approve_members(self.endpoint.secret_key(), approved)?;
         self.merge_policy(policy.clone())?;
         self.broadcast(Wire::RoomPolicy {
             policy: policy.clone(),
@@ -202,6 +221,35 @@ impl ChatNode {
             channels.voice = None;
             channels.session = None;
         }
+        let peers: Vec<_> = self
+            .room
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|room| room.peers.keys().cloned().collect())
+            .unwrap_or_default();
+        for peer in peers {
+            if self.room_permissions(&peer).calls {
+                continue;
+            }
+            if let Some(p) = self
+                .room
+                .lock()
+                .unwrap()
+                .as_mut()
+                .and_then(|room| room.peers.get_mut(&peer))
+            {
+                p.voice = false;
+                p.voice_channel = None;
+                p.voice_session = None;
+                p.speaking_until = 0;
+            }
+            self.clear_peer_visual(&peer);
+            if let Some(audio) = self.audio.lock().unwrap().as_ref() {
+                audio.remove(&peer);
+                audio.remove_system_audio(&peer);
+            }
+        }
         self.emit_state();
         Ok(())
     }
@@ -213,29 +261,37 @@ impl ChatNode {
             .get(&(room, self.id()))
             .cloned()
     }
-    pub(super) fn authorize_join(&self, hello: &Hello) -> Result<()> {
-        let peer = hello.address.id.to_string();
-        ensure!(!self.is_blocked(&peer), "Contact unavailable");
+    pub(super) fn authorize_member(
+        &self,
+        room: Uuid,
+        peer: &str,
+        admission: Option<&Admission>,
+    ) -> Result<()> {
+        ensure!(!self.is_blocked(peer), "Contact unavailable");
         let Some(policy) = self.room_policy() else {
             return Ok(());
         };
-        if peer == policy.ownership.owner || self.known_members.lock().unwrap().contains_key(&peer)
-        {
+        ensure!(policy.room == room, "Wrong admission room");
+        if policy.approves(peer) {
             return Ok(());
         }
-        let admission = hello
-            .admission
-            .as_ref()
-            .context("Ask for a controlled invitation from this room's owner or administrator")?;
+        let admission = admission.context("This participant has no verified room admission. Ask the owner for a new controlled invitation (history is preserved)")?;
         admission.validate()?;
         ensure!(
-            admission.room == hello.room
+            admission.room == room
                 && admission.peer == peer
                 && admission.policy.ownership == policy.ownership
                 && policy.access(&admission.issuer).invitations,
-            "Room admission is not authorized"
+            "Room admission is not authorized by the current policy"
         );
         Ok(())
+    }
+    pub(super) fn authorize_join(&self, hello: &Hello) -> Result<()> {
+        self.authorize_member(
+            hello.room,
+            &hello.address.id.to_string(),
+            hello.admission.as_ref(),
+        )
     }
     pub async fn create_controlled_invitation(
         &self,

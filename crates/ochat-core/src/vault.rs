@@ -482,7 +482,15 @@ impl Vault {
                             .is_some_and(|id| ids.contains(id)));
                 let selection = object.key == format!("channel_view/{room}")
                     && object.value.as_str() == Some(channel.to_string().as_str());
-                if related
+                let offered = object.key.starts_with(&format!("send_file/{room}/"))
+                    && (object.value["offer"]["channel"]
+                        .as_str()
+                        .or_else(|| object.value[0]["channel"].as_str())
+                        .and_then(|s| s.parse::<Uuid>().ok())
+                        .unwrap_or(default)
+                        == channel);
+                if offered
+                    || related
                     || tools
                     || selection
                     || object.key == format!("read/{channel}")
@@ -504,6 +512,28 @@ impl Vault {
             }
         }
         tx.commit()?;
+        if let Some(channel) = deleted {
+            for object in &objects {
+                if object.key.starts_with(&format!("send_file/{room}/"))
+                    && object.value["offer"]["channel"]
+                        .as_str()
+                        .and_then(|s| s.parse::<Uuid>().ok())
+                        == Some(channel)
+                {
+                    if let Some(context) = object.value["context"]
+                        .as_str()
+                        .and_then(|s| s.parse::<Uuid>().ok())
+                    {
+                        let _ = fs::remove_file(
+                            self.directory
+                                .join("file-staging")
+                                .join(room.to_string())
+                                .join(format!("{context}.bin")),
+                        );
+                    }
+                }
+            }
+        }
         Ok(())
     }
     pub fn delete_prefix(&self, prefix: &str) -> Result<()> {
@@ -735,6 +765,10 @@ impl Vault {
             }
         }
         tx.commit()?;
+        let staging = self.directory.join("file-staging").join(room.to_string());
+        if staging.is_dir() {
+            fs::remove_dir_all(staging)?;
+        }
         Ok(())
     }
     pub fn import(

@@ -1,0 +1,34 @@
+/* Persistent voice controls; participants remain under their voice channel. */
+.discord-shell #voice-bar {
+  display:flex;flex-direction:column;gap:6px;flex-shrink:0;position:relative;width:auto;
+  margin:0;padding:12px 10px;border:0;border-top:1px solid var(--line);border-radius:0;
+  background:var(--custom-panel,var(--panel));color:var(--custom-panel-text,var(--text));
+  box-shadow:none;backdrop-filter:none;max-height:none;overflow:visible;
+}
+.discord-shell #voice-bar[hidden]{display:none}
+.discord-shell #voice-bar .dock-heading{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}
+.discord-shell #voice-bar .studio-audio-mark{width:15px;min-width:15px;height:15px;color:var(--success)}
+.discord-shell #voice-bar .studio-audio-mark svg{width:15px;height:15px}
+.discord-shell #voice-label{flex:1;min-width:0;white-space:normal;overflow-wrap:anywhere;font-size:12px;line-height:1.35;color:var(--success)}
+.discord-shell #voice-elapsed{font-size:10px;font-variant-numeric:tabular-nums;margin-left:auto}
+.discord-shell #stop-voice{display:inline-flex;align-items:center;gap:5px;min-height:32px;padding:5px;font-size:11px;border:0;border-radius:8px;background:transparent;color:var(--danger);margin:0}
+.discord-shell #voice-hint,.discord-shell #voice-roster{display:none}
+.discord-shell #voice-bar .dock-tools,.discord-shell #voice-bar .visual-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:0;padding:0}
+.discord-shell #voice-bar :is(.dock-tools,.visual-controls)>button{
+  display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:36px;margin:0;padding:7px 6px;
+  font-size:11px;line-height:1.3;white-space:normal;border:1px solid var(--line);border-radius:10px;
+  background:var(--field);color:var(--text);
+}
+.discord-shell #voice-bar :is(.dock-tools,.visual-controls)>button:hover{background:var(--hover)}
+.discord-shell #voice-bar :is(#mute-button,#deafen-button)[aria-pressed=true]{color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,var(--field));border-color:color-mix(in srgb,var(--danger) 30%,var(--line))}
+.discord-shell #voice-bar :is(#camera-button,#screen-button,#talk-button)[aria-pressed=true]{color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--field))}
+.discord-shell #voice-bar #talk-button{grid-column:1/-1}
+@media(max-width:899px){
+ .discord-shell #voice-bar{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;margin:0 12px 8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px}
+ .discord-shell #voice-bar .dock-heading{grid-column:1/-1;grid-row:auto}
+ .discord-shell #voice-bar .dock-tools,.discord-shell #voice-bar .visual-controls{display:contents}
+ .discord-shell #voice-bar :is(#voice-diagnostics-button,#dock-audio-settings,#mute-button,#deafen-button){grid-column:span 2;grid-row:auto}
+ .discord-shell #voice-bar :is(#camera-button,#screen-button){grid-column:span 4;grid-row:auto}
+ .discord-shell #voice-bar #talk-button{grid-column:1/-1;grid-row:auto}
+}
+@media(max-width:520px){.discord-shell #voice-bar{margin:0 10px 6px;padding:8px}.discord-shell #voice-bar :is(.dock-tools,.visual-controls)>button{gap:4px;padding:6px 4px;font-size:10px}.discord-shell #voice-bar button::before{width:16px;height:16px;flex-basis:16px}}

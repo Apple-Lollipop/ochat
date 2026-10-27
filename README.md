@@ -1,4 +1,14 @@
-# Ochat 0.12.4
+# Ochat 0.12.5
+
+## Changes in 0.12.5
+
+- Security update: transport negotiation is now **`ochat/5`**. Every participant must update, including macOS users. Existing identities, encrypted accounts/history, contact IDs and `ochat3:` invitations are retained. Invitation introductions require verifiable admission on both ends; merely remembering a participant is not authorization. An older offline participant without verifiable admission may need a new invitation from the owner.
+- Room handshakes exchange endpoint/room/challenge-bound HMAC proofs instead of exposing the reusable room secret to an introduced endpoint. Owners sign approved membership. Voice, camera, screen watching and system audio enforce call permissions and exact media scope in the network layer.
+- Offered files use immutable encrypted snapshots. Replacing the original path cannot change the bytes sent through an existing offer. Resume data remains local and is excluded from portable backups; legacy offers are fully verified before transfer.
+- External links require an explicit browser confirmation while Tor is active, with Copy and Cancel options. The external browser uses its own network connection. Native webview navigation is restricted to the application origin.
+- macOS checks microphone permission before capture and requests only on an explicit call or microphone test. Passive device refreshes never request access; denied access shows System Settings guidance. Audio diagnostics no longer enumerate devices repeatedly.
+- Emoji and modal focus handling is corrected. Small-window video controls remain accessible without clipping the player. Audio settings prioritize devices, levels and microphone testing; shortcuts remain available under Advanced. Author buttons have larger click targets and dock actions distinguish Call quality from Audio settings.
+- Windows EXE and Linux DEB/AppImage are the requested deliverables. The macOS GitHub workflow follows the working macos-26 / arm64 configuration, with correct lipo argument order and compiler caching. Local checks do not replace physical macOS permission or two-device acoustic tests.
 
 ## Changes in 0.12.4
 
@@ -67,7 +77,7 @@ Native Tauri 2 and Rust desktop messaging for Windows, Linux and macOS. English 
 
 ## Release folders
 
-The latest Windows application is `releases/Windows/Ochat_0.12.2_x64.exe`; the latest Linux packages are `releases/Linux/Ochat_0.12.2_amd64.deb` and `releases/Linux/Ochat_0.12.2_amd64.AppImage`. Earlier NSIS and Debian installers are preserved and do not contain this update. SHA-256 files and release manifests identify the artifacts. `releases/macOS/` records that no DMG was built because no macOS host/runner was available. The macOS build script and CI workflow remain available. See the release reports for executed checks and platform limits.
+The latest Windows application is `releases/Windows/Ochat_0.12.5_x64.exe`; Linux packages are `releases/Linux/Ochat_0.12.5_amd64.deb` and `releases/Linux/Ochat_0.12.5_amd64.AppImage`. Earlier deliverables are preserved and do not contain this security update. SHA-256 files and release manifests identify the artifacts. macOS arm64 DMGs are produced by the manually triggered `.github/workflows/macos.yml` workflow; no macOS application was built or physically tested on this Windows host. See `releases/reports/VALIDATION-0.12.5.html` for executed checks and remaining platform limits.
 
 ## Changes in 0.11.2
 

@@ -3,7 +3,7 @@ use crate::rooms::Ownership;
 use anyhow::{Result, ensure};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -50,6 +50,8 @@ pub struct Policy {
     pub room: Uuid,
     pub ownership: Ownership,
     pub revision: u64,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub approved_members: BTreeSet<String>,
     pub roles: BTreeMap<String, Role>,
     pub permissions: BTreeMap<Role, Permissions>,
     pub signature: String,
@@ -67,15 +69,74 @@ fn verify<T: Serialize>(peer: &str, domain: &str, value: &T, signature: &str) ->
     )?;
     Ok(())
 }
-impl Policy {
-    fn content(&self) -> impl Serialize {
+#[derive(Serialize)]
+#[serde(untagged)]
+enum PolicyContent<'a> {
+    Legacy(
         (
-            &self.room,
-            &self.ownership,
-            self.revision,
-            &self.roles,
-            &self.permissions,
-        )
+            &'a Uuid,
+            &'a Ownership,
+            u64,
+            &'a BTreeMap<String, Role>,
+            &'a BTreeMap<Role, Permissions>,
+        ),
+    ),
+    Approved(
+        (
+            &'a Uuid,
+            &'a Ownership,
+            u64,
+            &'a BTreeMap<String, Role>,
+            &'a BTreeMap<Role, Permissions>,
+            &'a BTreeSet<String>,
+        ),
+    ),
+}
+impl Policy {
+    fn content(&self) -> PolicyContent<'_> {
+        if self.approved_members.is_empty() {
+            PolicyContent::Legacy((
+                &self.room,
+                &self.ownership,
+                self.revision,
+                &self.roles,
+                &self.permissions,
+            ))
+        } else {
+            PolicyContent::Approved((
+                &self.room,
+                &self.ownership,
+                self.revision,
+                &self.roles,
+                &self.permissions,
+                &self.approved_members,
+            ))
+        }
+    }
+    fn domain(&self) -> &'static str {
+        if self.approved_members.is_empty() {
+            "ochat/policy/1"
+        } else {
+            "ochat/policy/2"
+        }
+    }
+    pub fn approve_members(
+        &mut self,
+        key: &iroh::SecretKey,
+        peers: impl IntoIterator<Item = String>,
+    ) -> Result<()> {
+        ensure!(
+            self.ownership.owner == key.public().to_string(),
+            "Only the owner can approve room members"
+        );
+        self.approved_members.extend(peers);
+        self.signature = sign(key, self.domain(), &self.content())?;
+        self.validate()
+    }
+    pub fn approves(&self, peer: &str) -> bool {
+        peer == self.ownership.owner
+            || self.roles.contains_key(peer)
+            || self.approved_members.contains(peer)
     }
     pub fn create(
         key: &iroh::SecretKey,
@@ -93,6 +154,7 @@ impl Policy {
             room,
             ownership,
             revision,
+            approved_members: BTreeSet::new(),
             roles,
             permissions,
             signature: String::new(),
@@ -105,9 +167,15 @@ impl Policy {
     pub fn validate(&self) -> Result<()> {
         self.ownership.validate(self.room)?;
         ensure!(
-            self.revision > 0 && self.roles.len() <= 128 && self.permissions.len() <= 4,
+            self.revision > 0
+                && self.roles.len() <= 128
+                && self.permissions.len() <= 4
+                && self.approved_members.len() <= 256,
             "Invalid room policy"
         );
+        for peer in &self.approved_members {
+            let _: iroh::PublicKey = peer.parse()?;
+        }
         for (peer, role) in &self.roles {
             let _: iroh::PublicKey = peer.parse()?;
             ensure!(
@@ -117,7 +185,7 @@ impl Policy {
         }
         verify(
             &self.ownership.owner,
-            "ochat/policy/1",
+            self.domain(),
             &self.content(),
             &self.signature,
         )
@@ -340,5 +408,47 @@ mod tests {
         let mut forged = admission;
         forged.room = Uuid::new_v4();
         assert!(forged.validate().is_err());
+    }
+}
+
+#[cfg(test)]
+mod approval_security_tests {
+    use super::*;
+    #[test]
+    fn legacy_policy_signature_and_owner_approval_are_bound() {
+        let owner = iroh::SecretKey::from_bytes(&[3; 32]);
+        let peer = iroh::SecretKey::from_bytes(&[4; 32]).public().to_string();
+        let room = Uuid::new_v4();
+        let mut policy = Policy::create(
+            &owner,
+            Ownership::create(&owner, room),
+            room,
+            1,
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let legacy = sign(
+            &owner,
+            "ochat/policy/1",
+            &(
+                &policy.room,
+                &policy.ownership,
+                policy.revision,
+                &policy.roles,
+                &policy.permissions,
+            ),
+        )
+        .unwrap();
+        assert_eq!(policy.signature, legacy);
+        assert!(!policy.approves(&peer));
+        policy.approved_members.insert(peer.clone());
+        assert!(policy.validate().is_err());
+        policy.approved_members.clear();
+        policy.approve_members(&owner, [peer.clone()]).unwrap();
+        policy.validate().unwrap();
+        assert!(policy.approves(&peer));
+        policy.approved_members.clear();
+        assert!(policy.validate().is_err());
     }
 }

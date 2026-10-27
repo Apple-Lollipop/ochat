@@ -535,6 +535,7 @@ impl ChatNode {
                 write_frame(
                     &mut send,
                     &Hello {
+                        challenge: [0; 32],
                         admission: None,
                         visual_revision: 2,
                         visual_media: true,

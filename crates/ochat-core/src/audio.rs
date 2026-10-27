@@ -27,6 +27,8 @@ use std::{
 use tokio::sync::{mpsc, oneshot};
 #[path = "audio_render.rs"]
 mod audio_render;
+#[path = "microphone_permission.rs"]
+mod microphone_permission;
 const RATE: u32 = crate::voice_codec::RATE;
 const BLOCK: usize = 480;
 #[cfg(test)]
@@ -44,6 +46,9 @@ pub fn devices() -> Result<Vec<AudioDeviceInfo>> {
     let host = cpal::default_host();
     let mut result = Vec::new();
     for input in [true, false] {
+        if input && !microphone_permission::authorized() {
+            continue;
+        }
         let default = if input {
             host.default_input_device()
         } else {
@@ -174,6 +179,7 @@ impl AudioSession {
         settings: AudioSettings,
         gate: Arc<crate::transmission::TalkGate>,
     ) -> Result<(Self, mpsc::Receiver<Bytes>)> {
+        microphone_permission::ensure().await?;
         let shared = Self::shared();
         let worker = shared.clone();
         let (tx, rx) = mpsc::channel(8);
@@ -865,6 +871,11 @@ pub async fn microphone_test(
     speaking: Arc<AtomicBool>,
 ) -> Result<()> {
     let mut test_settings = settings.clone();
+    microphone_permission::ensure().await?;
+    ensure!(
+        !cancel.load(Ordering::Acquire),
+        "Microphone test was cancelled"
+    );
     test_settings.push_to_talk = false;
     let (session, _packets) =
         AudioSession::start_with_settings(Arc::new(AtomicBool::new(false)), test_settings).await?;

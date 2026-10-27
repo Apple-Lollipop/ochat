@@ -1296,3 +1296,34 @@ test('native preferences group existing controls without changing labels or save
  const a=await setup(t);a.session(connected);a.get('settings-button').click();await flush();assert.equal(a.get('settings-dialog').classList.contains('native-preferences'),true);assert.ok(a.get('theme-choice').closest('.preference-group'));assert.ok(a.get('input-device').closest('.preference-group'));assert.equal(a.get('mute-button').parentElement.classList.contains('visual-controls'),true);
  a.get('message-sound').checked=false;a.get('settings-save').click();await flush();assert.equal(a.calls.find(([c])=>c==='save_settings')[1].settings.message_sound,false);
 });
+
+
+test('opening a modal closes the composer picker before Escape reaches the active layer',async t=>{
+ const a=await setup(t);a.session(connected);a.input('Keep this draft');a.get('emoji-button').click();await flush();assert.equal(a.get('emoji-dialog').open,true);
+ a.get('search-button').click();assert.equal(a.get('emoji-dialog').open,false);assert.equal(a.get('search-dialog').open,true);assert.equal(a.window.document.activeElement,a.get('search-query'));assert.equal(a.get('message').value,'Keep this draft');
+});
+
+test('Tor browser links need explicit consent and Copy or Lock never opens the browser',async t=>{
+ const a=await setup(t);a.app.session(connected,{...structuredClone(settings),tor_enabled:true});const copied=[];a.window.navigator.clipboard.writeText=async text=>copied.push(text);
+ await a.app.handleEvent({type:'message',room:'room',id:'tor-link',peer:'peer',name:'Peer',text:'https://example.com/path',timestamp:1,emojis:[]});const link=a.get('timeline').querySelector('a[href="https://example.com/path"]');link.click();await flush();assert.equal(a.get('external-link-dialog').open,true);assert.equal(a.calls.some(([c])=>c==='open_link'),false);
+ a.get('external-link-copy').click();await flush();assert.deepEqual(copied,['https://example.com/path']);assert.equal(a.calls.some(([c])=>c==='open_link'),false);
+ for(const [type,button] of [['auxclick',1],['contextmenu',2]]){const event=new a.window.MouseEvent(type,{button,bubbles:true,cancelable:true});link.dispatchEvent(event);await flush();assert.equal(event.defaultPrevented,true);assert.equal(a.get('external-link-dialog').open,true);a.get('external-link-dialog').querySelector('.close-dialog').click();assert.equal(a.calls.some(([c])=>c==='open_link'),false);}
+ link.click();await flush();a.get('external-link-open').click();await flush();assert.ok(a.calls.some(([c,args])=>c==='open_link'&&args.url==='https://example.com/path'&&args.torBrowserConfirmed===true));
+ const count=a.calls.filter(([c])=>c==='open_link').length;link.click();await flush();await a.app.lockAccount();a.get('external-link-open').click();await flush();assert.equal(a.calls.filter(([c])=>c==='open_link').length,count);assert.equal(a.get('external-link-url').textContent,'');
+});
+
+test('audio devices and test precede advanced shortcuts without losing shortcut controls',async t=>{
+ const a=await setup(t);a.session(connected);a.get('settings-button').click();await flush();const panel=a.window.document.querySelector('[data-settings-panel="audio"]');assert.equal(panel.firstElementChild.id,'audio-device-preferences');assert.ok(panel.firstElementChild.contains(a.get('input-device')));assert.ok(panel.firstElementChild.contains(a.get('test-microphone')));assert.equal(a.get('audio-shortcuts').open,false);assert.ok(a.get('audio-shortcuts').contains(a.get('microphone-shortcut-input')));a.get('audio-shortcuts').open=true;assert.ok(a.get('microphone-shortcut'));
+});
+
+test('call quality polls levels without repeatedly enumerating microphone devices',async t=>{
+ const a=await setup(t);a.session({...connected,voice:true});const previous=a.window.__TAURI__.core.invoke;let enumerations=0;
+ a.window.__TAURI__.core.invoke=async(c,args)=>c==='audio_devices'?(enumerations++,[]):c==='voice_diagnostics'?{audio:structuredClone(settings.audio),snapshot:{...connected,voice:true},level:.1}:previous(c,args);
+ a.get('voice-diagnostics-button').click();await flush();assert.equal(enumerations,1);await a.app.refreshDiagnostics();await a.app.refreshDiagnostics();assert.equal(enumerations,1);a.get('diagnostics-refresh-devices').click();await flush();assert.equal(enumerations,2);assert.equal(a.get('voice-diagnostics-button').textContent,'Call quality');a.get('voice-diagnostics-dialog').close();
+ a.get('dock-audio-settings').click();await flush();assert.equal(a.get('settings-dialog').open,true);assert.equal(a.window.document.querySelector('[data-settings-tab="audio"]').classList.contains('selected'),true);
+});
+
+
+test('macOS device-name hint does not request microphone access while viewing settings',async t=>{
+ const a=await setup(t);Object.defineProperty(a.window.navigator,'userAgent',{value:'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',configurable:true});a.session(connected);a.get('settings-button').click();await flush();assert.equal(a.get('microphone-permission-hint').hidden,false);assert.equal(a.calls.some(([c])=>['prepare_capture','start_voice','test_microphone'].includes(c)),false);
+});

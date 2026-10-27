@@ -21,6 +21,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 argon2 = "0.6"
 chacha20poly1305 = "0.11"
 hkdf = "0.12"
+hmac = "0.12"
 sha2 = "0.10"
 zeroize = { version = "1", features = ["derive"] }
 rusqlite = { version = "0.40", features = ["bundled"] }
@@ -31,18 +32,23 @@ opus = "0.4"
 rtrb = "0.3"
 rubato = "0.16"
 fs2 = "0.4"
+tempfile = "3"
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider"] }
 url = "2"
 html5ever = "0.39"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 webpki-roots = "1"
 
-[dev-dependencies]
-tempfile = "3"
+
 
 [target.'cfg(target_os = "windows")'.dependencies]
 wasapi = "0.26"
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 arti-client = { version = "0.47", default-features = false, features = ["tokio", "rustls", "compression"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+block2 = "0.6"
+objc2-av-foundation = { version = "0.3.2", default-features = false, features = ["std", "AVCaptureDevice", "AVMediaFormat", "block2"] }
 

@@ -124,6 +124,7 @@ impl ChatNode {
         let conn = self.endpoint.connect(friend.address.clone(), ALPN).await?;
         let (mut send, mut recv) = conn.open_bi().await?;
         let hello = Hello {
+            challenge: [0; 32],
             admission: None,
             visual_revision: 0,
             visual_media: false,

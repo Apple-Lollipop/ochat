@@ -1,3 +1,4 @@
+
 .window-controls{display:flex;align-self:stretch;margin-right:-12px;flex-shrink:0}
 .window-chrome-placeholder{height:30px;min-height:30px;flex:0 0 30px}
 .discord-shell .app-header[popover]{position:fixed;inset:0 auto auto 0;margin:0;width:100vw;max-width:none;overflow:visible;box-sizing:border-box;z-index:100}
@@ -8,39 +9,38 @@
 .app-header [data-tauri-drag-region]{user-select:none}
 .tab-voice-icon{display:inline-grid;place-items:center;font-size:12px;flex-shrink:0;color:var(--success);background:var(--panel);border-radius:50%;width:22px;height:22px}
 #conversation-tabs .tab-voice-icon{position:absolute;left:0;bottom:-1px;border:2px solid var(--rail);z-index:1}
-.visual-controls{display:flex;gap:5px;flex-wrap:wrap;padding:6px 0}
-.visual-controls button{font-size:11px;min-height:30px;padding:5px 8px}
-.visual-controls button[aria-pressed=true]{background:var(--accent);color:var(--accent-foreground)}
-.visual-stage{flex:0 0 auto;max-height:40%;overflow:auto;background:var(--panel);border-bottom:1px solid var(--hairline);padding:8px 12px}
-.visual-heading{display:flex;justify-content:space-between;gap:12px;font-size:11px;color:var(--muted);margin-bottom:6px}
-.visual-heading strong{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.visual-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:8px}
-.visual-card{position:relative;display:flex;flex-direction:column;align-items:stretch;background:#111;border-radius:8px;margin:0;overflow:hidden;min-width:0;max-height:230px}
-.visual-card img,.visual-card video{display:block;width:100%;height:160px;object-fit:contain;min-height:0;flex:1;background:#111}
-.visual-card figcaption{font-size:11px;color:#eee;background:#202024;padding:5px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.shortcut-row{display:grid;grid-template-columns:1fr auto;gap:6px;margin:12px 0}.shortcut-row label{grid-column:1/-1}.shortcut-record{text-align:left;overflow-wrap:anywhere;min-width:0;white-space:normal}
+.shortcut-row{display:grid;grid-template-columns:1fr auto;gap:6px;margin:12px 0}
+.shortcut-row label{grid-column:1/-1}
+.shortcut-record{text-align:left;overflow-wrap:anywhere;min-width:0;white-space:normal}
 .drop-overlay{position:fixed;inset:45px 15px 15px;z-index:15;display:grid;place-items:center;pointer-events:none;background:var(--panel);border:2px dashed var(--accent);border-radius:14px;font-size:18px;color:var(--accent)}
-#drop-file-list{max-height:220px;overflow:auto;overflow-wrap:anywhere;padding-left:20px}#drop-error{white-space:pre-line}
-@media(max-width:899px){.visual-stage{max-height:30%;padding:6px 10px}.visual-card img,.visual-card video{height:110px}.visual-grid{grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr))}.visual-controls{padding:2px 0}.window-controls button{width:36px;min-width:36px}}
-.visual-heading{align-items:center;min-height:22px}.visual-heading .text-button{min-height:24px;padding:2px 4px;font-size:11px;flex-shrink:0}.visual-card figcaption{display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:8px}.visual-expand{font-size:10px;min-height:20px;border:0;background:transparent;color:#eee;padding:0 3px}.visual-card:fullscreen{max-height:none;border-radius:0}.visual-card:fullscreen img,.visual-card:fullscreen video{height:100%;object-fit:contain}#screen-button[aria-pressed=true]{background:var(--danger);color:var(--bg)}
-#conversation-tabs .conversation-tab{touch-action:none}
-/* Keep only native window operations available above a blocking dialog. */
+#drop-file-list{max-height:220px;overflow:auto;overflow-wrap:anywhere;padding-left:20px}
+#drop-error{white-space:pre-line}
+@media(max-width:899px){
+.window-controls button{width:36px;min-width:36px}}
+#screen-button[aria-pressed=true]{background:var(--danger);color:var(--bg)}
+#conversation-tabs .conversation-tab{touch-action:none}/* Keep only native window operations available above a blocking dialog. */
 dialog .app-header #navigation-toggle{visibility:hidden;pointer-events:none}
-.shortcut-row{grid-template-columns:minmax(0,1fr) auto auto}.shortcut-input{min-width:0;width:100%;font-size:12px}.tab-category{display:flex;flex-direction:column;align-items:center;width:100%;gap:4px}.tab-category+ .tab-category{border-top:1px solid var(--hairline);padding-top:10px;margin-top:4px}.tab-category-heading{font-size:8px;line-height:1.3;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);text-align:center;width:100%;padding:2px 3px}.tab-category-heading span{font-size:8px;opacity:.65}#private-conversation-tabs,#room-conversation-tabs{display:flex;flex-direction:column;align-items:center;gap:11px;width:100%}#conversation-tabs .room-conversation .conversation-tab,#conversation-tabs .room-conversation .tab-avatar{border-radius:13px}#conversation-tabs .direct-conversation .conversation-tab,#conversation-tabs .direct-conversation .tab-avatar{border-radius:50%}#conversation-tabs .room-conversation .conversation-tab:after{content:'#';position:absolute;right:0;top:0;font-size:10px;line-height:14px;width:14px;height:14px;border-radius:4px;color:var(--muted);background:var(--panel);border:1px solid var(--rail)}.visual-surface{position:relative;flex:1;min-height:90px;height:160px;background:#101114;overflow:hidden}.visual-card .visual-surface>video,.visual-surface .video-image,.visual-surface .video-canvas{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain}.visual-surface .video-status{color:#ddd;padding:20px;font-size:12px;text-align:center}.visual-card figcaption{flex-wrap:wrap;white-space:normal;gap:4px;overflow:visible}.visual-card figcaption>span:first-child{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.visual-card-tools{display:flex;gap:8px;flex-wrap:wrap}.visual-expand{min-height:24px}.visual-card:fullscreen .visual-surface{height:100%;min-height:0}
-.visual-watch{border:0;border-radius:6px;padding:4px 10px;min-height:28px;background:var(--accent);color:var(--on-accent,#fff)}.stream-volume{display:flex;align-items:center;gap:6px;width:100%;font-size:11px}.stream-volume input{min-width:60px;flex:1;width:90px}.stream-volume output{width:36px;text-align:right}.visual-surface .video-status{position:relative;z-index:1;background:#101114bb;border-radius:6px;margin:8px;padding:8px}.visual-card{max-height:270px}
-
-.gif-button { font-size:11px;font-weight:800;letter-spacing:.02em; }
-.risibank-dialog { width:min(620px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto; }
-.risibank-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px;max-height:50vh;min-height:100px;overflow:auto;padding:4px; }
-.risibank-item { display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;padding:8px;gap:6px;border-radius:8px;background:var(--surface);color:inherit;border:1px solid var(--border); }
-.risibank-item img { width:100%;height:100px;object-fit:contain; }
-.risibank-item span { font-size:11px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
-.risibank-item:focus-visible { outline:2px solid var(--accent,#007aff);outline-offset:1px; }
-
-.giphy-account { display:grid;gap:10px;margin-top:20px;padding:14px;border:1px solid var(--border);border-radius:8px; }
-.giphy-attribution { display:block;margin:12px 0 4px;width:160px; }
-.giphy-attribution img { display:block;width:160px;height:auto; }
-.giphy-brand-dark { display:none!important; }
-[data-theme="dark"] .giphy-brand-dark { display:block!important; }
-[data-theme="dark"] .giphy-brand-light { display:none!important; }
-.giphy-message-image { display:block;width:min(320px,100%);height:200px;object-fit:contain; }
+.shortcut-row{grid-template-columns:minmax(0,1fr) auto auto}
+.shortcut-input{min-width:0;width:100%;font-size:12px}
+.tab-category{display:flex;flex-direction:column;align-items:center;width:100%;gap:4px}
+.tab-category+ .tab-category{border-top:1px solid var(--hairline);padding-top:10px;margin-top:4px}
+.tab-category-heading{font-size:8px;line-height:1.3;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);text-align:center;width:100%;padding:2px 3px}
+.tab-category-heading span{font-size:8px;opacity:.65}
+#private-conversation-tabs,#room-conversation-tabs{display:flex;flex-direction:column;align-items:center;gap:11px;width:100%}
+#conversation-tabs .room-conversation .conversation-tab,#conversation-tabs .room-conversation .tab-avatar{border-radius:13px}
+#conversation-tabs .direct-conversation .conversation-tab,#conversation-tabs .direct-conversation .tab-avatar{border-radius:50%}
+#conversation-tabs .room-conversation .conversation-tab:after{content:'#';position:absolute;right:0;top:0;font-size:10px;line-height:14px;width:14px;height:14px;border-radius:4px;color:var(--muted);background:var(--panel);border:1px solid var(--rail)}
+.gif-button{ font-size:11px;font-weight:800;letter-spacing:.02em; }
+.risibank-dialog{ width:min(620px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto; }
+.risibank-grid{ display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px;max-height:50vh;min-height:100px;overflow:auto;padding:4px; }
+.risibank-item{ display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;padding:8px;gap:6px;border-radius:8px;background:var(--surface);color:inherit;border:1px solid var(--border); }
+.risibank-item img{ width:100%;height:100px;object-fit:contain; }
+.risibank-item span{ font-size:11px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.risibank-item:focus-visible{ outline:2px solid var(--accent,#007aff);outline-offset:1px; }
+.giphy-account{ display:grid;gap:10px;margin-top:20px;padding:14px;border:1px solid var(--border);border-radius:8px; }
+.giphy-attribution{ display:block;margin:12px 0 4px;width:160px; }
+.giphy-attribution img{ display:block;width:160px;height:auto; }
+.giphy-brand-dark{ display:none!important; }
+[data-theme="dark"] .giphy-brand-dark{ display:block!important; }
+[data-theme="dark"] .giphy-brand-light{ display:none!important; }
+.giphy-message-image{ display:block;width:min(320px,100%);height:200px;object-fit:contain; }

@@ -962,10 +962,14 @@ async fn open_link(
     app: tauri::AppHandle,
     state: State<'_, DesktopState>,
     url: String,
+    tor_browser_confirmed: Option<bool>,
 ) -> Reply<()> {
     use tauri_plugin_opener::OpenerExt;
-    node(&state).await?;
+    let account = node(&state).await?;
     ochat_core::links::http_url(&url).map_err(error)?;
+    if account.settings().tor_enabled && tor_browser_confirmed != Some(true) {
+        return Err("Your external browser is not protected by Ochat's Tor connection. Confirm opening or copy the link to Tor Browser".into());
+    }
     app.opener().open_url(url, None::<&str>).map_err(error)
 }
 #[tauri::command]
@@ -1285,7 +1289,17 @@ fn main() {
         })
         .plugin(shortcuts::plugin())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
+        // All external links use open_link, including its active-Tor confirmation.
+        .plugin(
+            tauri_plugin_opener::Builder::new()
+                .open_js_links_on_click(false)
+                .build(),
+        )
+        .plugin(
+            tauri::plugin::Builder::<tauri::Wry>::new("trusted-navigation")
+                .on_navigation(|_, url| capture_permissions::trusted_url(url))
+                .build(),
+        )
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
         .manage(DesktopState::default())

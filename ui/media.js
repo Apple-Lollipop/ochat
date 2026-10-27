@@ -1,7 +1,7 @@
 /* Capture controls, compressed media and ephemeral viewers. No browser storage. */
 (() => {
   const $=id=>document.getElementById(id),captures=new Map(),pending=new Map(),remote=new Map(),audioStates=new Map();
-  let api,epoch=0,options=null,collapsed=false,soundAvailable=false,soundMedia=null,nativeScreen=false,focusedCard=null;
+  let api,epoch=0,options=null,collapsed=false,soundAvailable=false,soundMedia=null,nativeScreen=false,focusedCard=null,layoutFrame=0;
   const ctx=()=>api?.context() || {};
   const mediaId=voice=>voice?.call?.id || voice?.voice_channel || voice?.room?.id;
   const voiceLease=voice=>voice?.call?.id || voice?.voice_session || voice?.room?.id;
@@ -45,10 +45,25 @@
       default:return error?.message || String(error);
     }
   }
+  function layoutStage(){
+    layoutFrame=0;const stage=$('visual-stage');if(stage.hidden)return;
+    const panel=stage.parentElement,panelStyle=getComputedStyle(panel);let occupied=0,count=0;
+    for(const sibling of panel.children){
+      if(sibling===stage||sibling.id==='timeline')continue;
+      const style=getComputedStyle(sibling);if(style.display==='none'||['absolute','fixed'].includes(style.position))continue;
+      occupied+=sibling.getBoundingClientRect().height+(parseFloat(style.marginTop)||0)+(parseFloat(style.marginBottom)||0);count++;
+    }
+    const budget=Math.max(0,panel.clientHeight-occupied-(parseFloat(panelStyle.paddingTop)||0)-(parseFloat(panelStyle.paddingBottom)||0)-(parseFloat(panelStyle.rowGap)||0)*count);
+    const reserve=document.body.dataset.voiceView==='true'?0:Math.max(0,Math.min(120,budget-290));
+    const padding=(parseFloat(getComputedStyle(stage).paddingTop)||0)+(parseFloat(getComputedStyle(stage).paddingBottom)||0);
+    const height=collapsed?stage.querySelector('.visual-heading').getBoundingClientRect().height+padding:Math.min(focusedCard?520:360,Math.max(0,budget-reserve));
+    stage.style.setProperty('--stream-stage-height',Math.floor(height)+'px');
+  }
+  function queueLayout(){if(!layoutFrame)layoutFrame=requestAnimationFrame(layoutStage);}
   function focusCard(card){
     focusedCard=focusedCard===card?null:card;
     for(const item of $('visual-grid').children){const active=item===focusedCard;item.classList.toggle('visual-focused',active);const button=item.querySelector('.visual-focus');if(button){button.textContent=active?'Show grid':'Focus';button.setAttribute('aria-pressed',String(active));}}
-    $('visual-grid').classList.toggle('has-focus',!!focusedCard);
+    $('visual-grid').classList.toggle('has-focus',!!focusedCard);if(focusedCard)$('visual-grid').scrollTop=0;stage();
   }
   function makeCard(name,kind,local,source){
     const card=document.createElement('figure');card.className='visual-card';card.dataset.kind=kind;card.dataset.watching=String(local);if(local)card.classList.add('local-'+kind);
@@ -59,7 +74,7 @@
     button('Expand',()=>card.requestFullscreen?.().catch(api.toast));const focus=button('Focus',()=>focusCard(card));focus.classList.add('visual-focus');focus.setAttribute('aria-pressed','false');focus.disabled=!local;if(local)button('Quality…',()=>openOptions(kind));
     const audio=kind==='screen'?button(local?'Share sound':'Sound off',()=>{if(local){const c=captures.get('screen');if(c)toggleAudio(c,!c.audioActive);}}):null;
     if(audio && (!local || !soundAvailable))audio.disabled=true;
-    caption.append(label,tools);card.append(surface,caption);$('visual-grid').append(card);return {card,surface,label,audio,focus};
+    caption.append(label,tools);card.append(surface,caption);$('visual-grid').append(card);card.streamLabel=label;return {card,surface,label,audio,focus};
   }
   function updateCaption(c){
     const profile=c.control?.profile;c.label.textContent=`You · ${c.kind==='screen'?'Screen':'Camera'}${profile?` · ${profile.height}p / ${profile.fps} FPS`:''}`;
@@ -205,7 +220,7 @@
     const activeMedia=voice?.voice?mediaId(voice):null;if(activeMedia!==soundMedia){audioStates.clear();soundMedia=activeMedia;}
     for(const [key,item] of remote)if(!matches(voice,item.media) || !voice.peers.some(p=>p.id===item.peer && p.voice && (!item.control?.connection || p.voice_session===item.control.connection))){item.renderer.dispose();item.card.remove();remote.delete(key);}
     if(focusedCard&&!focusedCard.isConnected){focusedCard=null;$('visual-grid').classList.remove('has-focus');}
-    $('visual-stage').hidden=!ctx().unlocked || !$('visual-grid').children.length;document.body.dataset.visualActive=String(!$('visual-stage').hidden);$('visual-grid').hidden=collapsed;$('collapse-video').textContent=collapsed?'Show video':'Hide video';$('collapse-video').setAttribute('aria-expanded',String(!collapsed));$('visual-room-name').textContent=voice?c.roomTitle(voice.room.id):'';
+    $('visual-stage').hidden=!ctx().unlocked || !$('visual-grid').children.length;document.body.dataset.visualActive=String(!$('visual-stage').hidden);document.body.dataset.streamFocused=String(!!focusedCard);$('visual-grid').hidden=collapsed;$('collapse-video').textContent=collapsed?'Show video':'Hide video';$('collapse-video').setAttribute('aria-expanded',String(!collapsed));$('visual-room-name').textContent=focusedCard?.streamLabel?.textContent || (voice?c.roomTitle(voice.room.id):'');queueLayout();
   }
   function sync(){
     if(!api)return;for(const [kind,token]of [...pending])if(!ctx().unlocked || voiceLease(ctx().voice)!==token.lease)stop(kind);for(const [kind,c] of captures)if(!ctx().unlocked || (!matches(ctx().voice,c.media) || voiceLease(ctx().voice)!==c.lease))stop(kind);
@@ -228,7 +243,8 @@
     if(!item || !item.watching)return;
     item.session=session;item.media=media;item.at=Date.now();if(item.audio)item.audio.textContent=audioStates.get(item.peer)?'Sound shared':'Sound off';item.renderer.packet(value);stage();
   }
-  function reset(){epoch++;for(const kind of [...pending.keys(),...captures.keys()])stop(kind);for(const item of remote.values()){item.renderer.dispose();item.card.remove();}remote.clear();audioStates.clear();options=null;collapsed=false;focusedCard=null;$('visual-grid').classList.remove('has-focus');$('capture-options-dialog').close();$('visual-grid').replaceChildren();$('visual-stage').hidden=true;document.body.dataset.visualActive='false';}
+  function reset(){epoch++;if(layoutFrame)cancelAnimationFrame(layoutFrame);layoutFrame=0;for(const kind of [...pending.keys(),...captures.keys()])stop(kind);for(const item of remote.values()){item.renderer.dispose();item.card.remove();}remote.clear();audioStates.clear();options=null;collapsed=false;focusedCard=null;$('visual-grid').classList.remove('has-focus');$('capture-options-dialog').close();$('visual-grid').replaceChildren();$('visual-stage').hidden=true;document.body.dataset.visualActive='false';document.body.dataset.streamFocused='false';}
+  if(typeof ResizeObserver==='function'){const geometry=new ResizeObserver(queueLayout);for(const id of ['conversation-panel','voice-bar','composer','reply-draft','typing-status','voice-channel-view']){const target=$(id);if(target)geometry.observe(target);}}window.addEventListener('resize',queueLayout);
   window.OchatMedia={sync,event,reset,openOptions,
     init(callbacks){api=callbacks;api.invoke('screen_capture_capabilities').then(value=>nativeScreen=!!value?.native).catch(()=>{});api.invoke('system_audio_capabilities').then(value=>soundAvailable=!!value?.available).catch(()=>{});
       for(const kind of ['camera','screen'])$(kind+'-button').onclick=()=>captures.has(kind)||pending.has(kind)?stop(kind):openOptions(kind);

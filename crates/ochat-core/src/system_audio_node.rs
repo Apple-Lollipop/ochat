@@ -6,6 +6,10 @@ impl ChatNode {
         parent: VisualControl,
     ) -> Result<VisualControl> {
         ensure!(
+            self.room_permissions(&self.id()).calls,
+            "Your role cannot share media"
+        );
+        ensure!(
             parent.kind == VisualKind::Screen && self.visual_media_id()? == parent.media,
             "Start screen sharing before sharing system sound"
         );

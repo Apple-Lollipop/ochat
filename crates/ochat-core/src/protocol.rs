@@ -9,7 +9,7 @@ use std::time::Duration;
 use tokio::time::timeout;
 use uuid::Uuid;
 
-pub const ALPN: &[u8] = b"ochat/4";
+pub const ALPN: &[u8] = b"ochat/5";
 // Transport bounds apply to each introduction frame, not room membership.
 pub const MAX_MEMBERS_PER_FRAME: usize = 32;
 pub const MAX_FRAME: usize = 32 * 1024;
@@ -88,6 +88,8 @@ pub fn clean_name(input: &str) -> Result<String> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Member {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub admission: Option<crate::governance::Admission>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub avatar_hash: Option<String>,
     pub address: EndpointAddr,
     pub name: String,
@@ -95,6 +97,8 @@ pub struct Member {
 
 #[derive(Serialize, Deserialize)]
 pub struct Hello {
+    #[serde(default)]
+    pub challenge: [u8; 32],
     #[serde(default)]
     pub admission: Option<crate::governance::Admission>,
     #[serde(default)]
@@ -125,6 +129,10 @@ pub struct Hello {
 
 #[derive(Serialize, Deserialize)]
 pub struct Welcome {
+    #[serde(default)]
+    pub proof: Option<[u8; 32]>,
+    #[serde(default)]
+    pub admission: Option<crate::governance::Admission>,
     #[serde(default)]
     pub visual_revision: u8,
     #[serde(default)]
@@ -339,5 +347,51 @@ mod tests {
         assert!(file.validate().is_ok());
         file.size = MAX_FILE + 1;
         assert!(file.validate().is_err());
+    }
+}
+
+/// Mutual, endpoint-bound room knowledge proof. The room secret is never sent.
+pub fn room_proof(
+    secret: &[u8; 32],
+    room: Uuid,
+    from: &str,
+    to: &str,
+    challenge: &[u8; 32],
+    reply: bool,
+) -> [u8; 32] {
+    use hmac::{Hmac, Mac};
+    let mut mac = <Hmac<sha2::Sha256> as Mac>::new_from_slice(secret).expect("fixed HMAC key size");
+    mac.update(if reply {
+        b"ochat/5/room/reply"
+    } else {
+        b"ochat/5/room/hello"
+    });
+    mac.update(room.as_bytes());
+    mac.update(from.as_bytes());
+    mac.update(to.as_bytes());
+    mac.update(challenge);
+    mac.finalize().into_bytes().into()
+}
+
+#[cfg(test)]
+mod proof_security_tests {
+    use super::*;
+    #[test]
+    fn proof_binds_both_endpoints_room_nonce_secret_and_direction() {
+        let room = Uuid::new_v4();
+        let key = [7; 32];
+        let nonce = [8; 32];
+        let proof = room_proof(&key, room, "alice", "bob", &nonce, false);
+        assert_ne!(proof, key);
+        for other in [
+            room_proof(&[9; 32], room, "alice", "bob", &nonce, false),
+            room_proof(&key, Uuid::new_v4(), "alice", "bob", &nonce, false),
+            room_proof(&key, room, "bob", "alice", &nonce, false),
+            room_proof(&key, room, "alice", "eve", &nonce, false),
+            room_proof(&key, room, "alice", "bob", &[9; 32], false),
+            room_proof(&key, room, "alice", "bob", &nonce, true),
+        ] {
+            assert_ne!(proof, other);
+        }
     }
 }
