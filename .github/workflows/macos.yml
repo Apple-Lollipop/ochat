@@ -25,8 +25,8 @@ jobs:
       MACOSX_DEPLOYMENT_TARGET: '11.0'
       CI: 'true'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
@@ -51,16 +51,25 @@ jobs:
       - name: Build universal application and DMG
         run: |
           npm run tauri -- build --target universal-apple-darwin --bundles app,dmg -- --locked 2>&1 | tee macos-build.log
+      - name: Collect DMG and checksums
+        id: collect
+        run: node scripts/release/collect.cjs macos
       - name: Verify architectures and local signature
+        id: verify
         run: |
           app="target/universal-apple-darwin/release/bundle/macos/Ochat.app"
           test -d "$app"
-          lipo -verify_arch x86_64 arm64 "$app/Contents/MacOS/ochat"
+          lipo "$app/Contents/MacOS/ochat" -verify_arch x86_64 arm64
           codesign --verify --deep --strict --verbose=2 "$app"
           hdiutil verify target/universal-apple-darwin/release/bundle/dmg/*.dmg
-      - name: Collect DMG and checksums
-        run: node scripts/release/collect.cjs macos
-      - uses: actions/upload-artifact@v4
+      - name: Record validation result
+        if: ${{ !cancelled() && steps.collect.outcome == 'success' }}
+        env:
+          VERIFICATION_RESULT: ${{ steps.verify.outcome }}
+        run: |
+          node -e 'require("node:fs").writeFileSync("releases/macOS/validation.json", JSON.stringify({verification:process.env.VERIFICATION_RESULT,signing:"ad-hoc",notarized:false},null,2)+"\n")'
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() && steps.collect.outcome == 'success' }}
         with:
           name: Ochat-macOS-universal
           path: releases/macOS/
@@ -69,7 +78,7 @@ jobs:
           compression-level: 0
       - name: Save build log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Ochat-macOS-build-log
           path: |
