@@ -1327,3 +1327,53 @@ test('call quality polls levels without repeatedly enumerating microphone device
 test('macOS device-name hint does not request microphone access while viewing settings',async t=>{
  const a=await setup(t);Object.defineProperty(a.window.navigator,'userAgent',{value:'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',configurable:true});a.session(connected);a.get('settings-button').click();await flush();assert.equal(a.get('microphone-permission-hint').hidden,false);assert.equal(a.calls.some(([c])=>['prepare_capture','start_voice','test_microphone'].includes(c)),false);
 });
+
+test('room roles appear in members and profiles and never leak into private chats',async t=>{
+ const a=await setup(t),peer={...connected.peers[0],role:'moderator',online:true},room={...channelRoom,role:'owner',peers:[peer],members:[peer]};a.session(room);
+ const member=a.get('members').querySelector('[data-avatar-peer="peer"]').closest('.member');assert.equal(member.querySelector('.member-role').textContent,'Moderator');
+ member.querySelector('.member-profile').click();await flush();assert.equal(a.get('peer-room-role').textContent,'Moderator');
+ a.session({...room,peers:[{...peer,role:'administrator'}],members:[{...peer,role:'administrator'}]});assert.equal(a.get('members').querySelector('[data-avatar-peer="peer"]').closest('.member'),member);assert.equal(member.querySelector('.member-role').textContent,'Administrator');
+ a.session({...connected,role:'owner',peers:[peer],members:[peer]});assert.equal(a.get('members').querySelector('.member-role'),null);assert.equal(a.get('peer-room-role').textContent,'');
+});
+
+test('voice mute and deafen badges update without replacing channel rows or focus',async t=>{
+ const a=await setup(t),peer={...connected.peers[0],online:true,voice:true,voice_channel:'voice-general',voice_session:'peer-session',muted:true,deafened:false},room={...channelRoom,voice:true,muted:false,deafened:true,voice_channel:'voice-general',voice_session:'self-session',peers:[peer],members:[peer]};a.session(room);
+ const local=a.get('room-channels').querySelector('.channel-person[data-peer="self"]');assert.equal(local.querySelector('.voice-state-muted').hidden,false);assert.equal(local.querySelector('.voice-state-deafened').hidden,false);
+ const row=a.get('room-channels').querySelector('.channel-person[data-peer="peer"]');assert.ok(row);row.focus();const badge=row.querySelector('.voice-state-badges');assert.ok(badge);assert.equal(badge.querySelector('.voice-state-muted').hidden,false);assert.equal(badge.querySelector('.voice-state-deafened').hidden,true);
+ const updated={...peer,muted:true,deafened:true};a.session({...room,peers:[updated],members:[updated]});assert.equal(a.get('room-channels').querySelector('.channel-person[data-peer="peer"]'),row);assert.equal(row.querySelector('.voice-state-badges'),badge);assert.equal(a.window.document.activeElement,row);assert.equal(badge.querySelector('.voice-state-deafened').hidden,false);row.click();assert.equal(a.get('peer-voice').textContent,'Deafened');a.window.OchatProfiles.close(false);
+ a.session({...room,peers:[{...peer,muted:null,deafened:null}],members:[]});assert.equal(badge.hidden,true);
+ await a.app.lockAccount();assert.equal(a.window.document.querySelector('.voice-state-badges,.member-role'),null);
+});
+
+test('background voice uses its own room mute state and role badges require verified values',async t=>{
+ const a=await setup(t),peer={...connected.peers[0],online:true,voice:true,voice_channel:'voice-general',voice_session:'peer-session',muted:true,deafened:true,role:'owner<script>'},room={...channelRoom,voice:true,voice_channel:'voice-general',voice_session:'self-session',peers:[peer],members:[peer]};a.session(room);assert.equal(a.get('members').querySelector('.member-role'),null);
+ a.session({...connected,room:{...connected.room,id:'private-other'},voice:false,peers:[{...connected.peers[0],muted:false,deafened:false}]});
+ const dock=a.get('voice-roster').querySelector('[data-avatar-peer="peer"]')?.closest('.voice-person');assert.ok(dock);assert.equal(dock.querySelector('.voice-state-deafened').hidden,false);
+});
+
+
+test('message context menu anchors to the pointer and retains reply copy and permission-aware actions',async t=>{
+ const a=await setup(t);a.session({...connected,permissions:{pins:false}});Object.defineProperty(a.window,'innerWidth',{configurable:true,value:480});Object.defineProperty(a.window,'innerHeight',{configurable:true,value:520});await a.app.handleEvent({type:'message',room:'room',id:'context',peer:'peer',name:'Peer',text:'Literal <message>',timestamp:1,emojis:[]});
+ const row=a.get('timeline').querySelector('[data-message-id="context"]');row.dispatchEvent(new a.window.MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:470,clientY:510}));
+ const menu=a.get('message-tools-dialog');assert.equal(menu.open,true);assert.ok(parseFloat(menu.style.left)<=248);assert.ok(parseFloat(menu.style.top)<=212);const items=[...a.get('message-tools-actions').querySelectorAll('button')];assert.deepEqual(items.map(n=>n.textContent),['Reply','Add reaction…','Open thread','Copy text','Pin message']);assert.equal(items.at(-1).disabled,true);
+ items.find(n=>n.textContent==='Copy text').click();await flush();assert.equal(menu.open,false);assert.ok(a.calls.some(([c,args])=>c==='copy_text'&&args.text==='Literal <message>'));
+ row.querySelector('.message-toolbar button:last-child').click();[...a.get('message-tools-actions').children].find(n=>n.textContent==='Reply').click();await flush();assert.equal(a.get('reply-draft').hidden,false);assert.ok(a.window.document.activeElement===a.get('message'),'Reply focuses composer');
+});
+
+test('message context menu supports keyboard navigation Escape and outside dismissal',async t=>{
+ const a=await setup(t);a.session(connected);await a.app.handleEvent({type:'message',room:'room',id:'keyboard-menu',peer:'self',name:'Test',text:'Mine',timestamp:1,emojis:[]});const more=a.get('timeline').querySelector('.message-toolbar button:last-child');more.focus();more.click();await flush();const menu=a.get('message-tools-dialog'),items=[...a.get('message-tools-actions').children];assert.ok(a.window.document.activeElement===items[0],'First item has focus');
+ menu.dispatchEvent(new a.window.KeyboardEvent('keydown',{key:'End',bubbles:true}));assert.ok(a.window.document.activeElement===items.at(-1),'Last item has focus');menu.dispatchEvent(new a.window.KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));assert.ok(a.window.document.activeElement===items[0],'First item has focus');
+ a.window.document.dispatchEvent(new a.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await flush();assert.equal(menu.open,false);assert.ok(a.window.document.activeElement===more,'Escape restores the opener');
+ more.click();await flush();a.get('timeline').dispatchEvent(new a.window.Event('scroll'));assert.equal(menu.open,true);a.get('timeline').dispatchEvent(new a.window.WheelEvent('wheel',{deltaY:30}));assert.equal(menu.open,false);more.click();await flush();a.get('message').dispatchEvent(new a.window.MouseEvent('pointerdown',{bubbles:true}));assert.equal(menu.open,false);
+});
+
+test('message context menu dismisses on history changes and cannot act after Lock',async t=>{
+ const a=await setup(t);a.session(connected);a.input('Draft retained');const event={room:'room',id:'private-menu',peer:'self',name:'Test',text:'Secret',timestamp:1};a.app.openMessageTools(event);const copy=[...a.get('message-tools-actions').children].find(n=>n.textContent==='Copy text');await a.app.loadRoom('room');assert.equal(a.get('message-tools-dialog').open,false);assert.equal(a.get('message').value,'Draft retained');
+ a.app.openMessageTools(event);await a.app.lockAccount();copy.click();await flush();assert.equal(a.calls.some(([c])=>c==='copy_text'),false);assert.equal(a.get('message-tools-dialog').open,false);assert.equal(a.get('message-tools-actions').children.length,0);
+});
+
+test('Room access keeps native role selects and every permission and invitation action',async t=>{
+ const a=await setup(t);a.session(channelRoom);const original=a.window.__TAURI__.core.invoke;a.window.__TAURI__.core.invoke=async(c,args)=>{if(c==='room_management')return {owner:'self',policy:{roles:{peer:'moderator'},permissions:{moderator:{invitations:true,channels:false,calls:true,pins:false}}},members:[{id:'peer',name:'Peer with a very long readable name'}],invitations:[],permissions:{invitations:true}};return original(c,args);};a.get('room-access-button').click();await flush();
+ assert.equal(a.get('room-management').open,true);assert.equal(a.get('role-members').querySelector('[data-peer="peer"]').value,'moderator');assert.equal(a.get('role-members').querySelector('[data-peer="self"]').disabled,true);assert.equal(a.get('role-permissions').querySelectorAll('input[type=checkbox]').length,12);assert.equal(a.get('create-controlled-invite').disabled,false);assert.equal(a.get('invite-uses').value,'1');assert.ok(a.get('copy-controlled-invite'));
+ a.get('role-permissions').querySelector('[data-role="moderator"][data-permission="channels"]').checked=true;a.get('save-room-access').click();await flush();const save=a.calls.find(([c])=>c==='save_room_roles');assert.equal(save[1].roles.peer,'moderator');assert.equal(save[1].permissions.moderator.channels,true);
+});

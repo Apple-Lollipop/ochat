@@ -182,6 +182,15 @@ impl FileOffer {
     }
 }
 
+/// Self-reported controls, never used as authorization or proof of microphone capture.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VoiceState {
+    #[serde(default)]
+    pub update_only: bool,
+    pub muted: bool,
+    pub deafened: bool,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Wire {
@@ -238,11 +247,17 @@ pub enum Wire {
         members: Vec<Member>,
     },
     Voice {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        call: Option<Uuid>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        state: Option<VoiceState>,
         active: bool,
         #[serde(default)]
         started_at: Option<u64>,
     },
     VoiceChannel {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        state: Option<VoiceState>,
         channel: Uuid,
         session: Uuid,
         active: bool,

@@ -764,6 +764,8 @@ mod tests {
             call.view.status = "active".into();
             *node.call.lock().unwrap() = Some(call);
             node.broadcast(Wire::Voice {
+                call: None,
+                state: None,
                 active: true,
                 started_at: None,
             })
@@ -880,7 +882,22 @@ mod tests {
             )
             .await
             .unwrap();
-        tokio::time::sleep(Duration::from_millis(80)).await;
+        // State announcements share the bounded encrypted control queue. Wait
+        // for consent to this exact replacement capture, not a fixed delay.
+        timeout(Duration::from_secs(5), async {
+            while alice
+                .visual
+                .lock()
+                .unwrap()
+                .viewers
+                .get(&(bob.id(), VisualKind::Camera))
+                != Some(&vp8.session)
+            {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
         let encoded = include_bytes!("../tests/fixtures/vp8-640x360.bin");
         assert_eq!(
             alice

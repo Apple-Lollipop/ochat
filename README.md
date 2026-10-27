@@ -1,4 +1,13 @@
-# Ochat 0.12.5
+# Ochat 0.12.6
+
+## Changes in 0.12.6
+
+- Password reveal buttons keep a stable pointer target in all account forms, including first launch, repeated clicks and reduced-motion mode. Masking on leaving a field and clearing on Lock are preserved.
+- Voice rosters display microphone-muted and deafened icons, with accessible labels. Updates are encrypted, scoped to the current voice channel/session or private call and cleared on exit. Older peers that do not report their controls remain unknown. These are self-reported controls, not proof that a remote microphone is physically disabled.
+- Verified room roles appear beside members and in their profile cards. Private conversations and unverified legacy ownership do not acquire invented roles.
+- Message actions open in a compact context menu at the pointer or action button. Reply, reactions, threads, copy, pin, edit and delete retain their existing permissions. Escape, arrow keys, outside clicks and focus restoration are supported.
+- Room access uses grouped native-inspired surfaces, switches and responsive invitation controls without changing permission or invitation logic.
+- Transport remains `ochat/5`; optional voice-state fields preserve compatibility with 0.12.5. Windows EXE and Linux DEB/AppImage 0.12.6 are available. No Windows installer or local macOS build was produced for this update; the macOS arm64 workflow remains available.
 
 ## Changes in 0.12.5
 
@@ -77,7 +86,7 @@ Native Tauri 2 and Rust desktop messaging for Windows, Linux and macOS. English 
 
 ## Release folders
 
-The latest Windows application is `releases/Windows/Ochat_0.12.5_x64.exe`; Linux packages are `releases/Linux/Ochat_0.12.5_amd64.deb` and `releases/Linux/Ochat_0.12.5_amd64.AppImage`. Earlier deliverables are preserved and do not contain this security update. SHA-256 files and release manifests identify the artifacts. macOS arm64 DMGs are produced by the manually triggered `.github/workflows/macos.yml` workflow; no macOS application was built or physically tested on this Windows host. See `releases/reports/VALIDATION-0.12.5.html` for executed checks and remaining platform limits.
+The latest Windows application is `releases/Windows/Ochat_0.12.6_x64.exe`; Linux packages are `releases/Linux/Ochat_0.12.6_amd64.deb` and `releases/Linux/Ochat_0.12.6_amd64.AppImage`. Earlier deliverables are preserved and do not contain this security update. SHA-256 files and release manifests identify the artifacts. macOS arm64 DMGs are produced by the manually triggered `.github/workflows/macos.yml` workflow; no macOS application was built or physically tested on this Windows host. See `releases/reports/VALIDATION-0.12.6.html` for executed checks and remaining hardware/platform limits.
 
 ## Changes in 0.11.2
 

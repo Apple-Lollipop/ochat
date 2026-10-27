@@ -242,6 +242,7 @@ impl ChatNode {
                 p.voice = false;
                 p.voice_channel = None;
                 p.voice_session = None;
+                p.voice_state = None;
                 p.speaking_until = 0;
             }
             self.clear_peer_visual(&peer);

@@ -1,0 +1,17 @@
+/* Message actions are a bounded non-modal menu, shared by pointer and keyboard. */
+.discord-shell #message-tools-dialog{
+ position:fixed;inset:auto;margin:0;padding:6px;width:232px;max-width:calc(100vw - 16px);
+ max-height:calc(100dvh - 16px);overflow:auto;box-sizing:border-box;border:1px solid var(--line);
+ border-radius:13px;background:var(--panel);color:var(--text);box-shadow:0 12px 36px #0003;
+ z-index:30;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.discord-shell #message-tools-dialog:not([open]){display:none}
+#message-tools-dialog>h2,#message-tools-dialog>.dialog-actions{display:none}
+#message-tools-context{font-size:11px;line-height:1.45;padding:7px 9px 9px;margin:0;color:var(--muted);border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+#message-tools-actions{display:grid;gap:2px;padding-top:4px}
+.discord-shell #message-tools-actions>.message-menu-item{display:block;width:100%;min-height:34px;padding:7px 10px;margin:0;border:0;border-radius:7px;text-align:left;font-size:13px;font-weight:500;line-height:1.4;background:transparent;color:var(--text);box-shadow:none}
+.discord-shell #message-tools-actions>.message-menu-item:hover{background:var(--hover)}
+.discord-shell #message-tools-actions>.message-menu-item:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;background:var(--selection)}
+.discord-shell #message-tools-actions>.message-menu-item.danger{color:var(--danger);border-top:1px solid var(--line);margin-top:3px;border-radius:0 0 7px 7px}
+.discord-shell #message-tools-actions>.message-menu-item:disabled{opacity:.45;cursor:not-allowed}
+@media(forced-colors:active){.discord-shell #message-tools-dialog{border:1px solid CanvasText}.discord-shell #message-tools-actions>.message-menu-item:focus-visible{outline-color:Highlight}}

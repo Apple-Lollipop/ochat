@@ -60,6 +60,8 @@ async fn denied_or_unscoped_voice_cannot_enable_media_recipients() {
             room,
             &peer.id(),
             Wire::Voice {
+                call: None,
+                state: None,
                 active: true,
                 started_at: Some(now()),
             },
@@ -73,6 +75,7 @@ async fn denied_or_unscoped_voice_cannot_enable_media_recipients() {
             room,
             &peer.id(),
             Wire::VoiceChannel {
+                state: None,
                 active: true,
                 started_at: Some(now()),
                 channel,
@@ -110,6 +113,7 @@ async fn denied_or_unscoped_voice_cannot_enable_media_recipients() {
             room,
             &peer.id(),
             Wire::VoiceChannel {
+                state: None,
                 active: true,
                 started_at: Some(now()),
                 channel,

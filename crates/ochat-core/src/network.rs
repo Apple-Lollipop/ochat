@@ -47,6 +47,8 @@ mod governance_node;
 mod inline_image_node;
 #[path = "message_tools_node.rs"]
 mod message_tools_node;
+#[path = "peer_state.rs"]
+mod peer_state;
 #[path = "personal_emojis.rs"]
 mod personal_emojis;
 #[cfg(test)]
@@ -67,6 +69,9 @@ use message_tools_node::ToolState;
 
 #[derive(Clone, Serialize)]
 pub struct PeerView {
+    pub muted: Option<bool>,
+    pub deafened: Option<bool>,
+    pub role: Option<crate::governance::Role>,
     pub availability: String,
     /// Reported by the authenticated peer, not independently verified.
     pub tor_enabled: Option<bool>,
@@ -98,6 +103,7 @@ pub struct RoomView {
 
 #[derive(Clone, Serialize)]
 pub struct Snapshot {
+    pub role: Option<crate::governance::Role>,
     pub permissions: crate::governance::Permissions,
     pub availability: String,
     pub bio: String,
@@ -271,6 +277,7 @@ pub struct HistoryEntry {
 }
 
 struct Peer {
+    voice_state: Option<VoiceState>,
     tor_enabled: Option<bool>,
     voice_channel: Option<Uuid>,
     voice_session: Option<Uuid>,
@@ -1157,6 +1164,7 @@ impl ChatNode {
         Ok(())
     }
     pub fn participants(&self, id: Uuid) -> Result<Vec<PeerView>> {
+        let role_policy = self.governance.lock().unwrap().policies.get(&id).cloned();
         let snapshot = self.snapshot();
         if snapshot.room.as_ref().is_some_and(|r| r.id == id) {
             return Ok(snapshot.members);
@@ -1169,10 +1177,19 @@ impl ChatNode {
             .flatten();
         Ok(archive
             .map(|a| {
+                let ownership = a.invitation.ownership.filter(|o| o.validate(id).is_ok());
                 a.members
                     .into_iter()
                     .filter(|m| m.address.id != self.endpoint.id())
                     .map(|m| PeerView {
+                        muted: None,
+                        deafened: None,
+                        role: Self::member_role(
+                            id,
+                            ownership.as_ref(),
+                            role_policy.as_ref(),
+                            &m.address.id.to_string(),
+                        ),
                         availability: "offline".into(),
                         tor_enabled: None,
                         bio: self.peer_bio(&m.address.id.to_string()),
@@ -1227,6 +1244,7 @@ impl ChatNode {
         self.endpoint.id().to_string()
     }
     pub fn snapshot(&self) -> Snapshot {
+        let role_policy = self.room_policy();
         let permissions = self.room_permissions(&self.id());
         let (channels, text_channel, voice_channel, voice_session) = self.channel_snapshot();
         let voice_clocks = self.channels.lock().unwrap().clocks.clone();
@@ -1243,6 +1261,9 @@ impl ChatNode {
             )
         };
         Snapshot {
+            role: room.as_ref().and_then(|r| {
+                Self::member_role(r.id, r.ownership.as_ref(), role_policy.as_ref(), &self.id())
+            }),
             permissions,
             availability: self.settings().availability,
             bio: self.bio(),
@@ -1272,6 +1293,14 @@ impl ChatNode {
                     r.peers
                         .iter()
                         .map(|(id, p)| PeerView {
+                            muted: p.voice_state.map(|s| s.muted),
+                            deafened: p.voice_state.map(|s| s.deafened),
+                            role: Self::member_role(
+                                r.id,
+                                r.ownership.as_ref(),
+                                role_policy.as_ref(),
+                                id,
+                            ),
                             availability: self.peer_availability(id),
                             tor_enabled: p.tor_enabled,
                             bio: self.peer_bio(&p.member.address.id.to_string()),
@@ -1281,7 +1310,9 @@ impl ChatNode {
                             visual_media: p.visual_media,
                             message_tools: p.message_tools,
                             avatar_hash: p.member.avatar_hash.clone(),
-                            speaking: p.voice && p.speaking_until > now(),
+                            speaking: p.voice
+                                && !p.voice_state.is_some_and(|s| s.muted || s.deafened)
+                                && p.speaking_until > now(),
                             id: id.clone(),
                             name: p.member.name.clone(),
                             voice: p.voice,
@@ -1315,6 +1346,11 @@ impl ChatNode {
                 .map(|(id, member)| {
                     let peer = room.as_ref().and_then(|r| r.peers.get(id));
                     PeerView {
+                        muted: peer.and_then(|p| p.voice_state).map(|s| s.muted),
+                        deafened: peer.and_then(|p| p.voice_state).map(|s| s.deafened),
+                        role: room.as_ref().and_then(|r| {
+                            Self::member_role(r.id, r.ownership.as_ref(), role_policy.as_ref(), id)
+                        }),
                         availability: if peer.is_some() {
                             self.peer_availability(id)
                         } else {
@@ -1328,7 +1364,11 @@ impl ChatNode {
                         visual_media: peer.is_some_and(|p| p.visual_media),
                         message_tools: peer.is_some_and(|p| p.message_tools),
                         avatar_hash: member.avatar_hash.clone(),
-                        speaking: peer.is_some_and(|p| p.voice && p.speaking_until > now()),
+                        speaking: peer.is_some_and(|p| {
+                            p.voice
+                                && !p.voice_state.is_some_and(|s| s.muted || s.deafened)
+                                && p.speaking_until > now()
+                        }),
                         id: id.clone(),
                         name: member.name.clone(),
                         online: peer.is_some() && self.peer_availability(id) != "invisible",
@@ -2071,6 +2111,7 @@ impl ChatNode {
             if let Some(old) = r.peers.insert(
                 id.clone(),
                 Peer {
+                    voice_state: None,
                     tor_enabled: None,
                     voice_channel: None,
                     voice_session: None,
@@ -2583,6 +2624,7 @@ impl ChatNode {
                 self.queue_members(room_id, members);
             }
             Wire::VoiceChannel {
+                state,
                 channel,
                 session,
                 active,
@@ -2598,6 +2640,28 @@ impl ChatNode {
                 {
                     return Ok(());
                 }
+                if state.is_some_and(|s| s.update_only) {
+                    if !active {
+                        return Ok(());
+                    }
+                    let mut room = self.room.lock().unwrap();
+                    let Some(p) = room.as_mut().and_then(|r| r.peers.get_mut(peer)) else {
+                        return Ok(());
+                    };
+                    if !p.voice
+                        || p.voice_channel != Some(channel)
+                        || p.voice_session != Some(session)
+                    {
+                        return Ok(());
+                    }
+                    p.voice_state = state.map(Self::normalize_voice_state);
+                    if p.voice_state.is_some_and(|s| s.muted) {
+                        p.speaking_until = 0;
+                    }
+                    drop(room);
+                    self.emit_state();
+                    return Ok(());
+                }
                 let previous = {
                     let mut room = self.room.lock().unwrap();
                     let Some(p) = room.as_mut().and_then(|r| r.peers.get_mut(peer)) else {
@@ -2610,6 +2674,13 @@ impl ChatNode {
                         p.voice_channel != Some(channel) || p.voice_session != Some(session);
                     p.voice_channel = active.then_some(channel);
                     p.voice_session = active.then_some(session);
+                    p.voice_state = active
+                        .then_some(state)
+                        .flatten()
+                        .map(Self::normalize_voice_state);
+                    if p.voice_state.is_some_and(|s| s.muted) {
+                        p.speaking_until = 0;
+                    }
                     changed
                 };
                 if previous {
@@ -2641,7 +2712,15 @@ impl ChatNode {
                     self.handle_wire(room_id, peer, Wire::Speaking { active }, seen)?;
                 }
             }
-            Wire::Voice { active, started_at } => {
+            Wire::Voice {
+                call,
+                state,
+                active,
+                started_at,
+            } => {
+                if active && !self.accept_voice_state(peer) {
+                    return Ok(());
+                }
                 // Legacy unscoped announcements cannot change a room channel.
                 if self
                     .room
@@ -2650,6 +2729,46 @@ impl ChatNode {
                     .as_ref()
                     .is_some_and(|r| r.capacity == 2)
                 {
+                    if state.is_some_and(|s| s.update_only) && call.is_none() {
+                        return Ok(());
+                    }
+                    if let Some(call) = call {
+                        if self.media_id() != Some(call) {
+                            return Ok(());
+                        }
+                    }
+                    if state.is_some_and(|s| s.update_only) {
+                        if !active {
+                            return Ok(());
+                        }
+                        let mut room = self.room.lock().unwrap();
+                        let Some(p) = room.as_mut().and_then(|r| r.peers.get_mut(peer)) else {
+                            return Ok(());
+                        };
+                        if !p.voice || p.voice_channel.is_some() {
+                            return Ok(());
+                        }
+                        p.voice_state = state.map(Self::normalize_voice_state);
+                        if p.voice_state.is_some_and(|s| s.muted) {
+                            p.speaking_until = 0;
+                        }
+                        drop(room);
+                        self.emit_state();
+                        return Ok(());
+                    }
+                    if let Some(p) = self
+                        .room
+                        .lock()
+                        .unwrap()
+                        .as_mut()
+                        .and_then(|r| r.peers.get_mut(peer))
+                    {
+                        p.voice_state = if active && call.is_some() {
+                            state.map(Self::normalize_voice_state)
+                        } else {
+                            None
+                        };
+                    }
                     self.apply_voice_state(peer, active, started_at);
                 }
             }
@@ -2658,7 +2777,12 @@ impl ChatNode {
                     let mut room = self.room.lock().unwrap();
                     if let Some(p) = room.as_mut().and_then(|r| r.peers.get_mut(peer)) {
                         let previous = p.speaking_until > now();
-                        p.speaking_until = if active && p.voice { now() + 1500 } else { 0 };
+                        p.speaking_until =
+                            if active && p.voice && !p.voice_state.is_some_and(|s| s.muted) {
+                                now() + 1500
+                            } else {
+                                0
+                            };
                         previous != (p.speaking_until > now())
                     } else {
                         false
@@ -2817,8 +2941,12 @@ impl ChatNode {
             .and_then(|r| r.peers.get_mut(peer))
         {
             p.voice = active;
+            if p.voice_state.is_some_and(|s| s.muted || s.deafened) {
+                p.speaking_until = 0;
+            }
             if !active {
                 p.speaking_until = 0;
+                p.voice_state = None;
             }
         }
         if active {
@@ -3990,6 +4118,8 @@ impl ChatNode {
                 }
                 self.finish_call(EndReason::Failed);
                 self.broadcast(Wire::Voice {
+                    call: None,
+                    state: None,
                     active: false,
                     started_at: None,
                 })
@@ -4452,6 +4582,19 @@ impl ChatNode {
     }
     fn finish_call(&self, reason: EndReason) {
         let announcement = self.voice_wire(false);
+        if let Some(room) = self
+            .room
+            .lock()
+            .unwrap()
+            .as_mut()
+            .filter(|r| r.capacity == 2)
+        {
+            for peer in room.peers.values_mut() {
+                peer.voice = false;
+                peer.voice_state = None;
+                peer.speaking_until = 0;
+            }
+        }
         self.clear_visual();
         self.deafened.store(false, Ordering::Release);
         let ended_view = self.call.lock().unwrap().as_ref().map(|c| c.view.clone());
@@ -4706,6 +4849,7 @@ impl ChatNode {
             muted || self.deafened.load(Ordering::Acquire),
             Ordering::Relaxed,
         );
+        self.announce_voice_controls();
         self.emit_state();
     }
     pub fn set_deafened(&self, deafened: bool) {
@@ -4718,6 +4862,7 @@ impl ChatNode {
             self.muted.store(true, Ordering::Release);
             self.talk_gate.hold(false);
         }
+        self.announce_voice_controls();
         self.emit_state();
     }
     pub fn hold_to_talk(&self, pressed: bool, sequence: u64) {
@@ -4743,7 +4888,12 @@ mod tests {
     fn test_voice_wire(node: &ChatNode, active: bool, started_at: Option<u64>) -> Wire {
         let room = node.snapshot().room.unwrap();
         if room.capacity == 2 {
-            return Wire::Voice { active, started_at };
+            return Wire::Voice {
+                call: None,
+                state: None,
+                active,
+                started_at,
+            };
         }
         let channel =
             crate::channels::default_channel(room.id, crate::channels::ChannelKind::Voice).id;
@@ -4751,6 +4901,7 @@ mod tests {
         state.voice = Some(channel);
         let session = *state.session.get_or_insert_with(Uuid::new_v4);
         Wire::VoiceChannel {
+            state: None,
             channel,
             session,
             active,

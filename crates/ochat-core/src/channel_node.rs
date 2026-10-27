@@ -20,15 +20,33 @@ impl ChatNode {
             .unwrap()
             .as_ref()
             .and_then(|r| r.voice_started_at);
-        let state = self.channels.lock().unwrap();
-        match (state.voice, state.session) {
-            (Some(channel), Some(session)) => Wire::VoiceChannel {
+        let state = active.then(|| VoiceState {
+            update_only: false,
+            muted: self.muted.load(Ordering::Acquire),
+            deafened: self.deafened.load(Ordering::Acquire),
+        });
+        let scope = {
+            let c = self.channels.lock().unwrap();
+            (
+                c.voice,
+                c.session,
+                c.voice.and_then(|id| c.clocks.get(&id).copied()),
+            )
+        };
+        match scope {
+            (Some(channel), Some(session), started_at) => Wire::VoiceChannel {
+                state,
                 channel,
                 session,
                 active,
-                started_at: state.clocks.get(&channel).copied(),
+                started_at,
             },
-            _ => Wire::Voice { active, started_at },
+            _ => Wire::Voice {
+                call: self.media_id(),
+                state,
+                active,
+                started_at,
+            },
         }
     }
     pub(super) fn refresh_channel_clocks(&self, incoming: Option<(Uuid, Option<u64>)>) {
@@ -491,6 +509,7 @@ impl ChatNode {
                             p.voice = false;
                             p.voice_channel = None;
                             p.voice_session = None;
+                            p.voice_state = None;
                             p.speaking_until = 0;
                             peers.push(peer.clone());
                         }

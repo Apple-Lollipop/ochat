@@ -55,7 +55,7 @@
       document.getElementById('timeline')?.addEventListener('contextmenu', event => {
         if (event.target.closest('a,input,textarea')) return;
         const row = event.target.closest('[data-message-id]');
-        if (row && !row.classList.contains('deleted-message') && callbacks.canInteract()) { event.preventDefault(); callbacks.messageMenu(row); }
+        if (row && !row.classList.contains('deleted-message') && callbacks.canInteract()) { event.preventDefault(); callbacks.messageMenu(row,event); }
       });
       new MutationObserver(records => {
         records.forEach(record => {

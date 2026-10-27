@@ -1,12 +1,12 @@
 {
   "name": "ochat-desktop",
-  "version": "0.12.5",
+  "version": "0.12.6",
   "private": true,
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
     "tauri": "tauri",
-    "test": "node --test tests/composer.test.cjs"
+    "test": "node --test tests/composer.test.cjs tests/passwords.test.cjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
