@@ -504,7 +504,7 @@ function render(next) {
   if ($('typing-status').textContent !== label) $('typing-status').textContent = label;
   window.OchatWorkspace?.render();
   renderComposer(); renderRooms(); renderCall(); renderVoiceRoster(); renderDock(); renderPeerCard();window.OchatFeatures?.sync();window.OchatGifPicker?.sync();syncNavigationLayout();window.OchatDiscord?.sync(conversationContext(selectedRoom),unlocked,Array.isArray(state?.channels));window.OchatChannels?.sync(channelContextFor(selectedRoom),unlocked);window.OchatPresence?.sync();
-  if(window.innerWidth>=1180 && selectedRoom && !introducedProfiles.has(selectedRoom) && !hasBlockingDialog()) {
+  if(window.innerWidth>=1180 && selectedRoom && room?.capacity!==2 && document.body.dataset.navigationSection!=='friends' && !introducedProfiles.has(selectedRoom) && !hasBlockingDialog()) {
     introducedProfiles.add(selectedRoom);
     if(!$('details-dialog').open){const focused=document.activeElement;openDetails();focused?.focus({preventScroll:true});}
   }
@@ -964,6 +964,7 @@ $('decline-call').onclick = $('cancel-call').onclick = () => action(null,() => i
 $('call-dialog').addEventListener('cancel',event => { event.preventDefault(); action(null,() => invoke('end_call')); });
 $('settings-button').onclick = () => action($('settings-button'),openSettings);
 function setNavigationSection(section) {
+  if(section==='friends'){restoreDetailsOnWide=false;window.OchatProfiles?.close(false);closePanel('details-dialog',false);inspectedPeer=null;inspectedRoom=null;}
   for(const name of ['rooms','friends']){const selected=name===section;$(`navigation-${name}`).hidden=!selected;$(`navigation-${name}-button`).classList.toggle('selected',selected);$(`navigation-${name}-button`).setAttribute('aria-pressed',String(selected));}
   $('friends-button').setAttribute('aria-pressed',String(section==='friends'));document.body.dataset.navigationSection=section;window.OchatDiscord?.sync(conversationContext(selectedRoom),unlocked,Array.isArray(state?.channels));window.OchatChannels?.sync(snapshotFor(selectedRoom),unlocked);
 }

@@ -35,8 +35,8 @@ test('late image loading follows the latest message but respects scrolling up',a
 });
 
 test('unlock opens Home without acknowledging a restored private conversation',async t=>{
- const a=await setup(t),snapshot={...connected,channels:[]};const original=a.window.__TAURI__.core.invoke;a.window.__TAURI__.core.invoke=async(c,args)=>c==='list_friends'?[]:c==='room_snapshots'?[snapshot]:c==='room_participants'?snapshot.peers:c==='history'?[{room:'room',timestamp:1,event:{type:'message',room:'room',id:'private-history',peer:'peer',name:'Peer',text:'Private history',timestamp:1,emojis:[]}}]:original(c,args);
- await a.app.completeAccount({snapshot,settings:structuredClone(settings),rooms:[snapshot.room]});await flush();assert.equal(a.window.document.body.dataset.homeOpen,'true');assert.equal(a.get('home-content').hidden,false);assert.equal(a.calls.some(([c])=>c==='mark_read'),false);
+ const a=await setup(t),snapshot={...connected,channels:[]};Object.defineProperty(a.window,'innerWidth',{value:1600,configurable:true});const original=a.window.__TAURI__.core.invoke;a.window.__TAURI__.core.invoke=async(c,args)=>c==='list_friends'?[]:c==='room_snapshots'?[snapshot]:c==='room_participants'?snapshot.peers:c==='history'?[{room:'room',timestamp:1,event:{type:'message',room:'room',id:'private-history',peer:'peer',name:'Peer',text:'Private history',timestamp:1,emojis:[]}}]:original(c,args);
+ await a.app.completeAccount({snapshot,settings:structuredClone(settings),rooms:[snapshot.room]});await flush();assert.equal(a.window.document.body.dataset.homeOpen,'true');assert.equal(a.get('home-content').hidden,false);assert.equal(a.calls.some(([c])=>c==='mark_read'),false);assert.equal(a.get('details-dialog').open,false);assert.equal(a.get('floating-profile').open,false);await a.app.handleEvent({type:'room_state',snapshot});a.window.dispatchEvent(new a.window.Event('resize'));await flush();assert.equal(a.get('details-dialog').open,false);
 });
 
 test('manual sensitivity supports quiet thresholds without changing other audio preferences',async t=>{
@@ -495,10 +495,10 @@ test('profile voice state follows the active speaker in another conversation',as
   assert.equal(a.calls.some(([c])=>['start_voice','call_peer','select_room'].includes(c)),false);
 });
 
-test('desktop profiles open once without stealing composer focus or reopening after dismissal',async t=>{
+test('desktop private profiles open only on request and stay closed after dismissal',async t=>{
   const a=await setup(t);a.session(base);a.get('message').focus();a.input('Draft');
   Object.defineProperty(a.window,'innerWidth',{value:1600,configurable:true});a.session(connected);
-  assert.equal(a.get('details-dialog').open,true);assert.equal(a.window.document.activeElement,a.get('message'));
+  assert.equal(a.get('details-dialog').open,false);assert.equal(a.window.document.activeElement,a.get('message'));a.get('conversation-identity').click();assert.equal(a.get('details-dialog').open,true);
   a.get('details-dialog').close();await flush();a.app.render({...connected,peers:[{...connected.peers[0],typing:true}]});
   assert.equal(a.get('details-dialog').open,false);assert.equal(a.get('message').value,'Draft');
 });
