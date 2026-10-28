@@ -60,3 +60,65 @@ Encrypted peer-to-peer conversations, voice calls and shared spaces for desktop.
 - Explicit contact blocking, invitation controls and identity verification tools.
 
 *Screenshots show the application with demonstration profiles and conversations.*
+
+## Build and run
+
+Install Git, stable Rust, Node.js **24.22.1** (see `.node-version`) and the [platform prerequisites](docs/DEVELOPMENT.md#platform-prerequisites). Run these commands from a terminal on the platform you want to build for.
+
+```sh
+git clone https://github.com/Artist6689/ochat.git
+cd ochat
+npm ci
+```
+
+### Windows (PowerShell)
+
+Launch in development mode:
+
+```powershell
+npm run dev
+```
+
+Build and run the Windows executable:
+
+```powershell
+npm run tauri -- build --no-bundle -- --locked
+.\target\release\ochat.exe
+```
+
+### Linux (Ubuntu / Debian)
+
+Launch in development mode:
+
+```sh
+npm run dev
+```
+
+Build the DEB and AppImage, then run the AppImage:
+
+```sh
+npm run tauri -- build --config src-tauri/tauri.linux.conf.json --bundles deb,appimage -- --locked
+chmod +x target/release/bundle/appimage/Ochat_0.0.1_amd64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./target/release/bundle/appimage/Ochat_0.0.1_amd64.AppImage
+```
+
+The DEB is in `target/release/bundle/deb/`. These artifact names assume an x86-64 Linux build.
+
+### macOS (Terminal)
+
+Launch in development mode:
+
+```sh
+npm run dev
+```
+
+Build an app and DMG for the current Mac, then open the app:
+
+```sh
+APPLE_SIGNING_IDENTITY=- npm run tauri -- build --bundles app,dmg -- --locked
+open target/release/bundle/macos/Ochat.app
+```
+
+This builds for the host architecture (Apple Silicon or Intel) with a local ad-hoc signature, without notarization. The DMG is in `target/release/bundle/dmg/`. See the [development guide](docs/DEVELOPMENT.md) for explicit targets, checks and platform setup.
+
+The output paths above assume `CARGO_TARGET_DIR` is not overridden. Close an already running Ochat instance before launching another build with the same profile.

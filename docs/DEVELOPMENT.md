@@ -6,6 +6,76 @@ The application version is **0.0.1**. This restarts the release numbering; it do
 
 Version metadata lives in `package.json`, `package-lock.json`, the workspace `Cargo.toml` and `Cargo.lock`, and `src-tauri/tauri.conf.json`. Keep these aligned when packaging.
 
+## Platform prerequisites
+
+Install Git, [Rust through rustup](https://rustup.rs/) and Node.js **24.22.1**, matching `.node-version`. The commands in the README assume these tools are on `PATH`. Use `node --version`, `cargo --version` and `cmake --version` to check your terminal.
+
+### Windows
+
+Install Visual Studio Build Tools with **Desktop development with C++**, an appropriate Windows SDK and CMake tools. Use the Rust **MSVC** toolchain and install the WebView2 runtime if it is absent. A Developer PowerShell for Visual Studio is useful when the native tools are not in your usual terminal's PATH.
+
+No Windows installer is required to run the EXE build. The release executable is `target/release/ochat.exe` unless the Cargo target directory is overridden.
+
+### Linux: Ubuntu / Debian
+
+Install the native build and media dependencies:
+
+```sh
+sudo apt-get update
+sudo apt-get install -y \
+  build-essential cmake pkg-config curl wget file patchelf \
+  libwebkit2gtk-4.1-dev libxdo-dev libssl-dev \
+  libayatana-appindicator3-dev librsvg2-dev libasound2-dev \
+  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+  gstreamer1.0-pipewire xdg-desktop-portal
+```
+
+Run Ochat as your normal user in a graphical desktop session. Screen sharing also needs the portal backend appropriate for that desktop. `APPIMAGE_EXTRACT_AND_RUN=1` lets the documented AppImage launch command work without relying on FUSE mounting.
+
+The repository's `scripts/linux/bootstrap.sh` configures a dedicated build environment under `/opt`; it is not intended as a general workstation setup script.
+
+### macOS
+
+Install the Xcode Command Line Tools, then CMake (the example assumes Homebrew is already installed):
+
+```sh
+xcode-select --install
+brew install cmake
+```
+
+Finish the Command Line Tools installation before building. Install Rust and the pinned Node version, then use `npm ci` and `npm run dev` from the repository root.
+
+For a release with an explicit target, select the one matching the Mac that will run it:
+
+```sh
+# Apple Silicon
+rustup target add aarch64-apple-darwin
+APPLE_SIGNING_IDENTITY=- npm run tauri -- build --target aarch64-apple-darwin --bundles app,dmg -- --locked
+open target/aarch64-apple-darwin/release/bundle/macos/Ochat.app
+```
+
+```sh
+# Intel
+rustup target add x86_64-apple-darwin
+APPLE_SIGNING_IDENTITY=- npm run tauri -- build --target x86_64-apple-darwin --bundles app,dmg -- --locked
+open target/x86_64-apple-darwin/release/bundle/macos/Ochat.app
+```
+
+These commands need a macOS build host. The explicit target builds are separate binaries, not a universal app. Ad-hoc signing is for local testing; distribution with a trusted developer identity and notarization requires the corresponding Apple credentials.
+
+Platform setup references: [official Tauri prerequisites](https://v2.tauri.app/start/prerequisites/). Ochat's additional audio/media dependencies are listed in `scripts/linux/bootstrap.sh` and its native build configuration.
+
+## Run without packaging
+
+After installing dependencies and running `npm ci`, `npm run dev` launches the Tauri development app on all three desktop platforms. To compile and run the Rust desktop entry point directly instead:
+
+```sh
+cargo run -p ochat --locked
+```
+
+There is no separate web server to start. Development runs use the normal local application profile; close another running instance using that identity first.
+
 ## Local checks
 
 Use the Node version in `.node-version`, stable Rust and the platform's native build tools.
