@@ -1422,3 +1422,22 @@ test('thread images retain media controls and hidden links do not request previe
  assert.equal(a.get('timeline').querySelector('[data-message-id="hidden-links"] .link-preview'),null);assert.equal(a.calls.some(([c])=>c==='link_preview'),false);
  await a.app.handleEvent({type:'member_joined',room:'room',id:'odd-time',peer:'peer',name:'Peer',timestamp:1e20});assert.ok(a.get('timeline').querySelector('.member-join time').dateTime);
 });
+
+test('private call cards retain identities and update measured routes without rebuilding participants',async t=>{
+ const a=await setup(t),call={...connected,voice:true,call:{state:'active'},peers:[{...connected.peers[0],voice:true,latency_ms:42}]};
+ a.session(call);
+ const roster=a.get('voice-roster'),self=roster.children[0],remote=roster.children[1];
+ assert.equal(a.get('voice-bar').classList.contains('private-call'),true);
+ assert.equal(roster.children.length,2);
+ assert.equal(self.querySelector('.call-person-connection').textContent,'This device');
+ assert.equal(remote.querySelector('.voice-person-name').textContent,'Peer');
+ assert.equal(remote.querySelector('.call-person-connection').textContent,'Direct · 42 ms');
+ a.session({...call,peers:[{...call.peers[0],route:'relay',latency_ms:90}]});
+ assert.equal(roster.children[1],remote);
+ assert.equal(remote.querySelector('.call-person-connection').textContent,'Relayed · 90 ms');
+ a.session({...call,peers:[{...call.peers[0],route:null,latency_ms:0}]});
+ assert.equal(remote.querySelector('.call-person-connection').textContent,'Route unavailable · Ping unavailable');
+ a.session({...call,voice:false,call:null});
+ assert.equal(a.get('voice-bar').hidden,true);
+ assert.equal(roster.children.length,0);
+});

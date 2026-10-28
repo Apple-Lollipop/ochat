@@ -333,7 +333,18 @@ function updateMember(row,peer) {
   button.onclick=()=>action(button,async()=>{if(friend?.status==='accepted')await messageFriend(friend);else if(friend?.status==='incoming'){await invoke('respond_friend',{peer:peer.id,accept:true});await refreshFriends();}else{const sent=await invoke('add_friend',{peer:peer.id});await refreshFriends();toast(sent?'Friend request sent.':'Request saved. It will retry when the peer is reachable.');}});
 }
 function syncVoiceList(container,peers,room=selectedRoom) {
-  syncKeyed(container,peers,p=>p.id,()=>{const row=el('button','voice-person');row.type='button';row._avatar=el('span','avatar voice-avatar');row._avatar.setAttribute('aria-hidden','true');row._name=el('span','voice-person-name');const speech=speechSlot();row._speech=speech.dot;row.append(row._avatar,row._name,speech.slot);return row;},(row,peer)=>{const person=peerDetails(peer.id,room,peer.name);profileAvatar(row._avatar,person.name,peer.avatar_hash || person.avatar_hash,peer.id);row._name.textContent=peer.name;row.classList.toggle('is-speaking',!!peer.speaking);setSpeaking(row._speech,!!peer.speaking);row.setAttribute('aria-label',`View ${peer.name}'s profile${peer.speaking?' · Speaking':''}`);row.onclick=()=>showPeer(peer.id,peer.name,room,row);});
+  syncKeyed(container,peers,p=>p.id,()=>{const row=el('button','voice-person');row.type='button';row._avatar=el('span','avatar voice-avatar');row._avatar.setAttribute('aria-hidden','true');row._name=el('span','voice-person-name');const speech=speechSlot();row._speech=speech.dot;row.append(row._avatar,row._name,speech.slot);return row;},(row,peer)=>{const person=peerDetails(peer.id,room,peer.name);profileAvatar(row._avatar,person.name,peer.avatar_hash || person.avatar_hash,peer.id);row._name.textContent=peer.name;row.classList.toggle('is-speaking',!!peer.speaking);setSpeaking(row._speech,!!peer.speaking);row.setAttribute('aria-label',`View ${peer.name}'s profile${peer.speaking?' · Speaking':''}`);row.onclick=()=>showPeer(peer.id,peer.name,room,row);
+    const privateCall=container.id==='voice-roster'&&snapshotFor(room)?.room?.capacity===2;
+    let connection=row.querySelector('.call-person-connection');
+    if(privateCall){
+      if(!connection){connection=el('small','call-person-connection');row.append(connection);}
+      const self=peer.id===state?.id,online=peer.online!==false;
+      const route=self?'This device':!online?'Reconnecting…':peer.route==='direct'?'Direct':peer.route==='relay'?(settings?.tor_enabled?'Tor → relay':'Relayed'):'Route unavailable';
+      const ping=!self&&online&&Number.isFinite(peer.latency_ms)&&peer.latency_ms>0?Math.round(peer.latency_ms)+' ms':'Ping unavailable';
+      connection.textContent=self?route:route+' · '+ping;
+      connection.title=self?'Your local microphone and audio output':'Current round-trip time and encrypted connection from this device';
+    }else connection?.remove();
+  });
   if(!peers.length)emptyList(container,'Nobody in voice.');
 }
 function activeVoice() {
@@ -342,13 +353,13 @@ function activeVoice() {
   return [...snapshots.values()].find(snapshot=>snapshot.room && !deletedRooms.has(snapshot.room.id) && snapshot.voice) || null;
 }
 function renderDock() {
-  const voice=activeVoice();$('voice-bar').hidden=!voice;const active=!!voice;
+  const voice=activeVoice();$('voice-bar').hidden=!voice;$('voice-bar').classList.toggle('private-call',voice?.room?.capacity===2);const active=!!voice;
   $('stop-voice').hidden=!active;
   if(!voice){releaseTalk();$('voice-roster').replaceChildren();renderTalk();updateVoiceTimer();return;}
   $('voice-label').textContent=conversationContext(voice.room.id).title+(voice.voice_channel?' → '+(voice.channels?.find(c=>c.id===voice.voice_channel)?.name || 'Voice'):'');$('stop-voice').textContent=voice.call?'Hang up':'Leave';$('stop-voice').title=voice.call?'Hang up':'Leave voice';$('stop-voice').setAttribute('aria-label',$('stop-voice').title);
   $('mute-button').textContent=voice.muted?'Unmute':'Mute';$('voice-hint').textContent=voice.muted?'Microphone muted · listening only':settings?.audio.push_to_talk?(talkRoom?'Transmitting while held':'Push-to-talk · listening'):'Microphone active';
   $('mute-button').title=$('voice-hint').textContent;$('mute-button').setAttribute('aria-pressed',String(!!voice.muted));
-  const peers=[{id:voice.id,name:`${voice.name} (you)`,speaking:voice.speaking},...voice.peers.filter(p=>p.voice && (!voice.voice_channel || p.voice_channel===voice.voice_channel))];syncVoiceList($('voice-roster'),peers,voice.room.id);renderTalk();updateVoiceTimer();
+  const peers=[{id:voice.id,name:`${voice.name} (you)`,avatar_hash:voice.avatar_hash,speaking:voice.speaking},...voice.peers.filter(p=>p.voice && (!voice.voice_channel || p.voice_channel===voice.voice_channel))];syncVoiceList($('voice-roster'),peers,voice.room.id);renderTalk();updateVoiceTimer();
 }
 function hasBlockingDialog() {return [...document.querySelectorAll('dialog[open]')].some(dialog=>dialog.id==='emoji-dialog'&&dialog.classList.contains('emoji-popover')?false:dialog.id==='navigation-dialog'?navigationModal:dialog.id==='details-dialog'?detailsModal:true);}
 function closePanel(id,restore=true) {if(id==='navigation-dialog' && unlocked && window.innerWidth>=900)return;const dialog=$(id);if(!dialog?.open)return;if(!restore)panelOpeners.delete(id);dialog.close();}
