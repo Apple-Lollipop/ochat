@@ -1,5 +1,7 @@
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use ochat_core::{hub::ChatHub, rooms::Ownership, settings::Settings, vault::Vault};
+use ochat_core::{
+    CONNECTION_ALPN, hub::ChatHub, rooms::Ownership, settings::Settings, vault::Vault,
+};
 use std::{sync::Arc, time::Duration};
 use tokio::time::{sleep, timeout};
 use uuid::Uuid;
@@ -34,7 +36,7 @@ async fn queued_request_is_not_delayed_by_an_unresponsive_saved_room() {
     av.put(&format!("friend/{}",bob.id()), &serde_json::json!({"peer":bob.id(),"name":"Bob","address":card["address"],"status":"outgoing","request_delivered":false,"direct_room":null})).unwrap();
     let sink = iroh::Endpoint::builder(iroh::endpoint::presets::Minimal)
         .relay_mode(iroh::RelayMode::Disabled)
-        .alpns(vec![b"ochat/4".to_vec()])
+        .alpns(vec![CONNECTION_ALPN.to_vec()])
         .bind()
         .await
         .unwrap();
@@ -116,7 +118,7 @@ async fn manual_resend_waits_for_a_real_acknowledgment_not_an_old_delivery_flag(
     let av = account(&dir.path().join("a"), "Alice");
     let receiver = iroh::Endpoint::builder(iroh::endpoint::presets::Minimal)
         .relay_mode(iroh::RelayMode::Disabled)
-        .alpns(vec![b"ochat/4".to_vec()])
+        .alpns(vec![CONNECTION_ALPN.to_vec()])
         .bind()
         .await
         .unwrap();

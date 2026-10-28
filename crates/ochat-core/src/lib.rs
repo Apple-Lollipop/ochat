@@ -29,6 +29,8 @@ mod voice_transport;
 
 pub use network::TransferCheckpoint;
 pub use network::{ChatNode, Event, Snapshot};
+/// Negotiated protocol identifier for endpoints communicating with Ochat.
+pub use protocol::ALPN as CONNECTION_ALPN;
 pub use protocol::{FileOffer, Invitation};
 pub mod network_exports {
     pub use crate::network::{FriendRequestResult, FriendView, HistoryEntry, PeerView, RoomView};
