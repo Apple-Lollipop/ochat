@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { test } = require('node:test');
-const source = fs.readFileSync('ui/vendor/twemoji/twemoji.min.js','utf8')+'\n'+fs.readFileSync('ui/emoji-renderer.js','utf8')+'\n'+fs.readFileSync('ui/profiles.js','utf8')+'\n'+fs.readFileSync('ui/community.js','utf8')+'\n'+fs.readFileSync('ui/discord.js','utf8')+'\n'+fs.readFileSync('ui/presentation.js','utf8')+'\n'+fs.readFileSync('ui/video-renderer.js','utf8')+'\n'+fs.readFileSync('ui/media.js','utf8')+'\n'+fs.readFileSync('ui/features.js','utf8')+'\n'+fs.readFileSync('ui/meme-picker.js','utf8')+'\n'+fs.readFileSync('ui/personalization.js','utf8')+'\n'+fs.readFileSync('ui/passwords.js','utf8')+'\n'+fs.readFileSync('ui/timeline-scroll.js','utf8')+'\n'+fs.readFileSync('ui/photo-crop.js','utf8')+'\n'+fs.readFileSync('ui/emoji-popover.js','utf8')+'\n'+fs.readFileSync('ui/app.js','utf8')+'\n'+fs.readFileSync('ui/presence.js','utf8')+'\n'+fs.readFileSync('ui/workspace.js','utf8')+'\n'+fs.readFileSync('ui/native-controls.js','utf8');
+const source = fs.readFileSync('ui/vendor/twemoji/twemoji.min.js','utf8')+'\n'+fs.readFileSync('ui/emoji-renderer.js','utf8')+'\n'+fs.readFileSync('ui/profiles.js','utf8')+'\n'+fs.readFileSync('ui/community.js','utf8')+'\n'+fs.readFileSync('ui/discord.js','utf8')+'\n'+fs.readFileSync('ui/presentation.js','utf8')+'\n'+fs.readFileSync('ui/video-renderer.js','utf8')+'\n'+fs.readFileSync('ui/media.js','utf8')+'\n'+fs.readFileSync('ui/features.js','utf8')+'\n'+fs.readFileSync('ui/meme-picker.js','utf8')+'\n'+fs.readFileSync('ui/personalization.js','utf8')+'\n'+fs.readFileSync('ui/passwords.js','utf8')+'\n'+fs.readFileSync('ui/timeline-scroll.js','utf8')+'\n'+fs.readFileSync('ui/photo-crop.js','utf8')+'\n'+fs.readFileSync('ui/emoji-popover.js','utf8')+'\n'+fs.readFileSync('ui/rich-text.js','utf8')+'\n'+fs.readFileSync('ui/message-media.js','utf8')+'\n'+fs.readFileSync('ui/app.js','utf8')+'\n'+fs.readFileSync('ui/organization.js','utf8')+'\n'+fs.readFileSync('ui/presence.js','utf8')+'\n'+fs.readFileSync('ui/workspace.js','utf8')+'\n'+fs.readFileSync('ui/native-controls.js','utf8')+'\n'+fs.readFileSync('ui/conversation-create.js','utf8');
 const html = fs.readFileSync('ui/index.html','utf8').replace(/<script\b[^>]*>[\s\S]*?<\/script>/g,'').replace(/<link\b[^>]*>/g,'');
 const settings = {theme:'system',audio:{input_device:null,output_device:null,input_volume:1,output_volume:1,noise_suppression:true,echo_cancellation:true,automatic_gain:true},message_sound:true,ringtone:true,sound_volume:0.35,relay_enabled:false};
 const base = {id:'self',name:'Test',room:null,peers:[],voice:false,muted:false,relay_enabled:false,call:null};
@@ -292,7 +292,7 @@ test('room creation separates open groups from direct chats without a capacity s
 });
 
 test('join notices render names literally and are deduplicated',async t=>{
-  const a=await setup(t);a.session(connected);const event={type:'member_joined',room:'room',id:'join',peer:'peer',name:'<b>Peer</b>',timestamp:1};await a.app.handleEvent(event);await a.app.handleEvent(event);assert.equal(a.get('timeline').querySelectorAll('.member-join').length,1);assert.equal(a.get('timeline').querySelector('.member-join').textContent,'<b>Peer</b> joined the room.');assert.equal(a.get('timeline').querySelector('.member-join b'),null);
+  const a=await setup(t);a.session(connected);const event={type:'member_joined',room:'room',id:'join',peer:'peer',name:'<b>Peer</b>',timestamp:1};await a.app.handleEvent(event);await a.app.handleEvent(event);assert.equal(a.get('timeline').querySelectorAll('.member-join').length,1);assert.equal(a.get('timeline').querySelector('.member-join span').textContent,'<b>Peer</b> joined the room.');assert.equal(a.get('timeline').querySelector('.member-join time').dateTime,new Date(1).toISOString());assert.ok(a.get('timeline').querySelector('.member-join time').textContent);assert.equal(a.get('timeline').querySelector('.member-join b'),null);
 });
 
 test('mention completion selects a participant and keeps encrypted mention metadata separate from the draft',async t=>{
@@ -1376,4 +1376,49 @@ test('Room access keeps native role selects and every permission and invitation 
  const a=await setup(t);a.session(channelRoom);const original=a.window.__TAURI__.core.invoke;a.window.__TAURI__.core.invoke=async(c,args)=>{if(c==='room_management')return {owner:'self',policy:{roles:{peer:'moderator'},permissions:{moderator:{invitations:true,channels:false,calls:true,pins:false}}},members:[{id:'peer',name:'Peer with a very long readable name'}],invitations:[],permissions:{invitations:true}};return original(c,args);};a.get('room-access-button').click();await flush();
  assert.equal(a.get('room-management').open,true);assert.equal(a.get('role-members').querySelector('[data-peer="peer"]').value,'moderator');assert.equal(a.get('role-members').querySelector('[data-peer="self"]').disabled,true);assert.equal(a.get('role-permissions').querySelectorAll('input[type=checkbox]').length,12);assert.equal(a.get('create-controlled-invite').disabled,false);assert.equal(a.get('invite-uses').value,'1');assert.ok(a.get('copy-controlled-invite'));
  a.get('role-permissions').querySelector('[data-role="moderator"][data-permission="channels"]').checked=true;a.get('save-room-access').click();await flush();const save=a.calls.find(([c])=>c==='save_room_roles');assert.equal(save[1].roles.peer,'moderator');assert.equal(save[1].permissions.moderator.channels,true);
+});
+
+
+test('rich messages format safely while preserving links, emoji text and spoilers',async t=>{
+ const a=await setup(t);a.session(connected);
+ const text='**Hello** 😀\n- First\n- Second\n```html\n<img src=x onerror=alert(1)>\n```\n||Secret https://example.org||';
+ await a.app.handleEvent({type:'message',room:'room',id:'formatted',peer:'peer',name:'Peer',text,timestamp:1,emojis:[]});
+ const bubble=a.get('timeline').querySelector('[data-message-id="formatted"] .bubble');
+ assert.equal(bubble.tagName,'DIV');assert.equal(bubble.querySelector('strong').textContent,'Hello');assert.equal(bubble.querySelectorAll('ul li').length,2);
+ assert.equal(bubble.querySelector('pre code').textContent,'<img src=x onerror=alert(1)>');assert.equal(bubble.querySelector('pre img'),null);
+ const toggle=bubble.querySelector('.spoiler-toggle'),content=bubble.querySelector('.spoiler-content');assert.equal(content.hidden,true);toggle.click();assert.equal(content.hidden,false);assert.equal(toggle.getAttribute('aria-expanded'),'true');assert.equal(content.querySelector('a').textContent,'https://example.org');toggle.click();assert.equal(content.hidden,true);bubble.closest('.message').querySelector('.reply-action').click();assert.equal(a.get('reply-excerpt').textContent.includes('Secret'),false);
+});
+
+test('local organization saves without renaming peers and survives pinning',async t=>{
+ const a=await setup(t);a.session(channelRoom);a.get('organize-conversation').click();
+ a.get('organization-nickname').value='Design team';a.get('organization-folder').value='Work';a.get('organization-use-color').checked=true;a.get('organization-color').value='#AA33CC';
+ a.get('conversation-organization').querySelector('form').dispatchEvent(new a.window.Event('submit',{cancelable:true}));await flush();await flush();
+ const saved=a.calls.filter(([c])=>c==='save_conversation_layout').at(-1)[1].layout;
+ assert.deepEqual(JSON.parse(JSON.stringify(saved.preferences.room)),{nickname:'Design team',folder:'Work',color:'#AA33CC'});assert.equal(a.get('room-title').textContent,'# general');assert.equal(a.get('room-conversation-tabs').querySelector('.tab-copy strong').textContent,'Design team');
+ assert.equal(a.get('group-room-list').querySelector('.conversation-folder-heading').textContent,'Work');
+ a.get('room-conversation-tabs').querySelector('.tab-pin').click();await flush();await flush();
+ const pinned=a.calls.filter(([c])=>c==='save_conversation_layout').at(-1)[1].layout;assert.equal(pinned.preferences.room.nickname,'Design team');assert.equal(a.calls.some(([c])=>c==='rename_room'),false);
+ await a.app.lockAccount();assert.equal(a.get('conversation-organization').open,false);assert.equal(a.get('organization-nickname').value,'');assert.equal(a.get('group-room-list').textContent.includes('Work'),false);
+});
+
+test('image replies use scoped thumbnails without exposing image references as the draft excerpt',async t=>{
+ const a=await setup(t);a.session(connected);const original=a.window.__TAURI__.core.invoke;
+ a.window.__TAURI__.core.invoke=async(c,args)=>{if(c==='message_image'){a.calls.push([c,args]);return 'data:image/png;base64,aGVsbG8=';}return original(c,args);};
+ const event={type:'message',room:'room',id:'image-reply-source',peer:'peer',name:'Peer',text:'ochat-image:'+'a'.repeat(64),timestamp:1,emojis:[]};await a.app.handleEvent(event);
+ a.get('timeline').querySelector('[data-message-id="image-reply-source"] .reply-action').click();await flush();
+ assert.equal(a.get('reply-excerpt').textContent,'Image');assert.ok(a.get('reply-excerpt').querySelector('.reply-image-preview'));assert.ok(a.calls.some(([c,args])=>c==='message_image'&&args.room==='room'&&args.peer==='peer'));
+ await a.app.handleEvent({...event,id:'reply-with-image',text:'Reply',reply_to:{id:event.id,peer:event.peer}});await flush();
+ assert.ok(a.get('timeline').querySelector('[data-message-id="reply-with-image"] .reply-quote .reply-image-preview'));
+ await a.app.lockAccount();assert.equal(a.get('reply-excerpt').querySelector('img'),null);
+});
+
+
+test('thread images retain media controls and hidden links do not request previews',async t=>{
+ const a=await setup(t);a.session(connected);const original=a.window.__TAURI__.core.invoke;
+ const event={type:'message',room:'room',id:'thread-image-source',peer:'peer',name:'Peer',text:'ochat-image:'+'b'.repeat(64),timestamp:1,emojis:[]};
+ a.window.__TAURI__.core.invoke=async(c,args)=>c==='thread_history'?{entries:[{event,timestamp:1}],total:1}:c==='message_image'?'data:image/png;base64,aGVsbG8=':original(c,args);
+ await a.window.OchatWorkspace.openThread(event);await flush();const imageFrame=a.get('thread-messages').querySelector('.inline-image');assert.ok(imageFrame);await imageFrame._load();await flush();assert.ok(a.get('thread-messages').querySelector('[data-favorite-image]'));
+ a.get('thread-dialog').close();await a.app.handleEvent({...event,id:'hidden-links',text:'||https://secret.test/path||\n```\nhttps://code.test/\n```\n`https://inline.test/`'});await flush();
+ assert.equal(a.get('timeline').querySelector('[data-message-id="hidden-links"] .link-preview'),null);assert.equal(a.calls.some(([c])=>c==='link_preview'),false);
+ await a.app.handleEvent({type:'member_joined',room:'room',id:'odd-time',peer:'peer',name:'Peer',timestamp:1e20});assert.ok(a.get('timeline').querySelector('.member-join time').dateTime);
 });

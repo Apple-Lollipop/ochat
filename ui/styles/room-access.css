@@ -34,3 +34,14 @@
 @media(max-width:600px){.discord-shell #room-management{padding:16px}.discord-shell #room-management>section{padding:14px}#room-management .invite-controls{grid-template-columns:1fr;gap:14px}#room-management #role-members .workspace-member{gap:10px}#room-management #role-members select{width:136px;flex-basis:136px}}
 @media(prefers-reduced-motion:reduce){#room-management .role-permission input[type=checkbox]::before{transition:none}}
 @media(forced-colors:active){.discord-shell #room-management .role-permission input[type=checkbox]{appearance:auto}#room-management .role-permission input[type=checkbox]::before{display:none}}
+#room-management #role-members .workspace-member{gap:12px;min-height:58px}
+#room-management .access-member-avatar{width:40px;height:40px;min-width:40px;flex:0 0 40px;font-size:14px}
+#room-management #role-members .access-member-info{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+#room-management .access-member-info strong{font-size:14px;line-height:1.45;font-weight:600;overflow-wrap:anywhere}
+#room-management .access-member-info small{font-size:11px;line-height:1.4;color:var(--muted);font-family:ui-monospace,monospace}
+#room-management .room-role-colors{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 20px}
+#room-management .role-color-control{display:flex;align-items:center;gap:10px;padding:10px 12px;margin:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;min-width:0}
+#room-management .role-color-control>span{flex:1;font-size:12px;overflow-wrap:anywhere}
+#room-management .role-color-control input[type=color]{appearance:none;width:30px;height:30px;min-height:30px;padding:2px;border:1px solid var(--line);border-radius:7px;flex:0 0 30px;background:var(--field);cursor:pointer}
+#room-management .role-color-control button{font-size:11px;min-height:30px;padding:5px}
+@media(max-width:600px){#room-management .room-role-colors{grid-template-columns:1fr}#room-management #role-members .workspace-member{display:grid;grid-template-columns:36px minmax(0,1fr);gap:8px 12px}#room-management .access-member-avatar{width:36px;height:36px;min-width:36px}#room-management #role-members select{grid-column:2;width:100%;max-width:100%}}

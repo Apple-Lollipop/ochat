@@ -14,6 +14,10 @@ pub enum Role {
     Moderator,
     Member,
 }
+pub fn valid_role_name(name: &str) -> bool {
+    !name.is_empty() && name.trim() == name && name.chars().count() <= 32
+        && !name.chars().any(|c| c.is_control() || matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{200b}' | '\u{feff}'))
+}
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Permissions {
     pub invitations: bool,
@@ -52,6 +56,14 @@ pub struct Policy {
     pub revision: u64,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub approved_members: BTreeSet<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub role_colors: BTreeMap<Role, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role_colors_signature: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub role_names: BTreeMap<Role, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role_names_signature: Option<String>,
     pub roles: BTreeMap<String, Role>,
     pub permissions: BTreeMap<Role, Permissions>,
     pub signature: String,
@@ -131,6 +143,56 @@ impl Policy {
         );
         self.approved_members.extend(peers);
         self.signature = sign(key, self.domain(), &self.content())?;
+        self.sign_colors(key)?;
+        self.sign_names(key)?;
+        self.validate()
+    }
+    // Cosmetics have their own proof; nested invitation/admission signatures keep
+    // their legacy canonical representation so older peers retain access.
+    fn authorization_only(&self) -> Self {
+        let mut policy = self.clone();
+        policy.role_colors.clear();
+        policy.role_colors_signature = None;
+        policy.role_names.clear();
+        policy.role_names_signature = None;
+        policy
+    }
+    fn color_content(&self) -> impl Serialize {
+        (
+            &self.room,
+            &self.ownership,
+            self.revision,
+            &self.signature,
+            &self.role_colors,
+        )
+    }
+    fn sign_colors(&mut self, key: &iroh::SecretKey) -> Result<()> {
+        self.role_colors_signature = if self.role_colors.is_empty() {
+            None
+        } else {
+            Some(sign(key, "ochat/role-colors/1", &self.color_content())?)
+        };
+        Ok(())
+    }
+    pub fn set_colors(
+        &mut self,
+        key: &iroh::SecretKey,
+        colors: BTreeMap<Role, String>,
+    ) -> Result<()> {
+        ensure!(
+            self.ownership.owner == key.public().to_string(),
+            "Only the owner can change role colors"
+        );
+        ensure!(
+            colors.len() <= 4
+                && colors
+                    .values()
+                    .all(|color| crate::settings::valid_color(color)),
+            "Use role colors in #RRGGBB format"
+        );
+        self.role_colors = colors;
+        self.signature = sign(key, self.domain(), &self.content())?;
+        self.sign_colors(key)?;
         self.validate()
     }
     pub fn approves(&self, peer: &str) -> bool {
@@ -155,6 +217,10 @@ impl Policy {
             ownership,
             revision,
             approved_members: BTreeSet::new(),
+            role_colors: BTreeMap::new(),
+            role_colors_signature: None,
+            role_names: BTreeMap::new(),
+            role_names_signature: None,
             roles,
             permissions,
             signature: String::new(),
@@ -173,6 +239,14 @@ impl Policy {
                 && self.approved_members.len() <= 256,
             "Invalid room policy"
         );
+        ensure!(
+            self.role_colors.len() <= 4
+                && self
+                    .role_colors
+                    .values()
+                    .all(|color| crate::settings::valid_color(color)),
+            "Invalid role colors"
+        );
         for peer in &self.approved_members {
             let _: iroh::PublicKey = peer.parse()?;
         }
@@ -188,7 +262,79 @@ impl Policy {
             self.domain(),
             &self.content(),
             &self.signature,
+        )?;
+        if self.role_colors.is_empty() {
+            ensure!(
+                self.role_colors_signature.is_none(),
+                "Unexpected role color signature"
+            );
+        } else {
+            let signature = self
+                .role_colors_signature
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("Missing role color signature"))?;
+            verify(
+                &self.ownership.owner,
+                "ochat/role-colors/1",
+                &self.color_content(),
+                signature,
+            )?;
+        }
+        ensure!(
+            self.role_names.len() <= 4
+                && self.role_names.values().all(|name| valid_role_name(name)),
+            "Invalid role names"
+        );
+        if self.role_names.is_empty() {
+            ensure!(
+                self.role_names_signature.is_none(),
+                "Unexpected role name signature"
+            );
+        } else {
+            verify(
+                &self.ownership.owner,
+                "ochat/role-names/1",
+                &self.name_content(),
+                self.role_names_signature
+                    .as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("Missing role name signature"))?,
+            )?;
+        }
+        Ok(())
+    }
+    fn name_content(&self) -> impl Serialize {
+        (
+            &self.room,
+            &self.ownership,
+            self.revision,
+            &self.signature,
+            &self.role_names,
         )
+    }
+    fn sign_names(&mut self, key: &iroh::SecretKey) -> Result<()> {
+        self.role_names_signature = if self.role_names.is_empty() {
+            None
+        } else {
+            Some(sign(key, "ochat/role-names/1", &self.name_content())?)
+        };
+        Ok(())
+    }
+    pub fn set_names(
+        &mut self,
+        key: &iroh::SecretKey,
+        names: BTreeMap<Role, String>,
+    ) -> Result<()> {
+        ensure!(
+            self.ownership.owner == key.public().to_string(),
+            "Only the owner can rename roles"
+        );
+        ensure!(
+            names.len() <= 4 && names.values().all(|name| valid_role_name(name)),
+            "Use role names of 1 to 32 characters without control characters"
+        );
+        self.role_names = names;
+        self.sign_names(key)?;
+        self.validate()
     }
     pub fn role(&self, peer: &str) -> Role {
         if peer == self.ownership.owner {
@@ -229,7 +375,7 @@ impl Ticket {
             &self.issuer,
             self.expires_at,
             self.maximum_uses,
-            &self.policy,
+            self.policy.authorization_only(),
         )
     }
     pub fn create(
@@ -309,7 +455,7 @@ impl Admission {
             &self.peer,
             &self.ticket,
             &self.issuer,
-            &self.policy,
+            self.policy.authorization_only(),
         )
     }
     pub fn create(key: &iroh::SecretKey, ticket: &Ticket, peer: String) -> Result<Self> {
@@ -450,5 +596,149 @@ mod approval_security_tests {
         assert!(policy.approves(&peer));
         policy.approved_members.clear();
         assert!(policy.validate().is_err());
+    }
+}
+
+#[cfg(test)]
+mod color_tests {
+    use super::*;
+    #[test]
+    fn colors_are_owner_signed_and_legacy_signatures_remain_unchanged() {
+        let key = iroh::SecretKey::from_bytes(&[31; 32]);
+        let other = iroh::SecretKey::from_bytes(&[32; 32]);
+        let room = Uuid::new_v4();
+        let mut p = Policy::create(
+            &key,
+            Ownership::create(&key, room),
+            room,
+            1,
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let legacy = p.signature.clone();
+        p.set_colors(&key, Default::default()).unwrap();
+        assert_eq!(p.signature, legacy);
+        let colors = BTreeMap::from([(Role::Owner, "#007AFF".to_owned())]);
+        assert!(p.set_colors(&other, colors.clone()).is_err());
+        p.set_colors(&key, colors).unwrap();
+        p.validate().unwrap();
+        assert_eq!(
+            p.signature, legacy,
+            "Cosmetic colors must preserve the legacy permission signature"
+        );
+        let mut legacy_json = serde_json::to_value(&p).unwrap();
+        legacy_json.as_object_mut().unwrap().remove("role_colors");
+        legacy_json
+            .as_object_mut()
+            .unwrap()
+            .remove("role_colors_signature");
+        serde_json::from_value::<Policy>(legacy_json)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let json = serde_json::to_vec(&p).unwrap();
+        serde_json::from_slice::<Policy>(&json)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let ticket = Ticket::create(
+            &key,
+            room,
+            "Colored room".into(),
+            key.public().into(),
+            u64::MAX - 1,
+            1,
+            p.clone(),
+        )
+        .unwrap();
+        let mut old_ticket = ticket.clone();
+        old_ticket.policy = old_ticket.policy.authorization_only();
+        old_ticket.validate().unwrap();
+        let admission = Admission::create(&key, &ticket, other.public().to_string()).unwrap();
+        let mut old_admission = admission.clone();
+        old_admission.policy = old_admission.policy.authorization_only();
+        old_admission.validate().unwrap();
+        let mut forged = p.clone();
+        forged.role_colors.insert(Role::Owner, "#FF0000".into());
+        assert!(forged.validate().is_err());
+        assert!(
+            p.set_colors(&key, BTreeMap::from([(Role::Member, "red".into())]))
+                .is_err()
+        );
+        p.set_colors(&key, Default::default()).unwrap();
+        assert_eq!(p.signature, legacy);
+    }
+}
+
+#[cfg(test)]
+mod name_tests {
+    use super::*;
+    #[test]
+    fn custom_names_are_signed_bounded_and_do_not_change_authorization() {
+        let key = iroh::SecretKey::from_bytes(&[41; 32]);
+        let other = iroh::SecretKey::from_bytes(&[42; 32]);
+        let room = Uuid::new_v4();
+        let mut p = Policy::create(
+            &key,
+            Ownership::create(&key, room),
+            room,
+            1,
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let original = p.signature.clone();
+        let names = BTreeMap::from([
+            (Role::Owner, "Captain".into()),
+            (Role::Moderator, "Guides".into()),
+        ]);
+        assert!(p.set_names(&other, names.clone()).is_err());
+        p.set_names(&key, names).unwrap();
+        p.validate().unwrap();
+        assert_eq!(p.signature, original);
+        p.set_colors(&key, BTreeMap::from([(Role::Owner, "#007AFF".into())]))
+            .unwrap();
+        p.validate().unwrap();
+        let copy: Policy = serde_json::from_slice(&serde_json::to_vec(&p).unwrap()).unwrap();
+        assert_eq!(copy.role_names[&Role::Owner], "Captain");
+        copy.validate().unwrap();
+        let mut forged = p.clone();
+        forged.role_names.insert(Role::Owner, "Imposter".into());
+        assert!(forged.validate().is_err());
+        for name in [
+            "",
+            " spaced ",
+            "bad\nname",
+            "\u{202e}hidden",
+            &"a".repeat(33),
+        ] {
+            assert!(
+                p.set_names(&key, BTreeMap::from([(Role::Owner, name.into())]))
+                    .is_err()
+            );
+        }
+        let ticket = Ticket::create(
+            &key,
+            room,
+            "Named roles".into(),
+            key.public().into(),
+            u64::MAX - 1,
+            1,
+            p.clone(),
+        )
+        .unwrap();
+        let mut legacy = ticket.clone();
+        legacy.policy = legacy.policy.authorization_only();
+        legacy.validate().unwrap();
+        let mut admission = Admission::create(&key, &ticket, other.public().to_string()).unwrap();
+        admission.policy = admission.policy.authorization_only();
+        admission.validate().unwrap();
+        p.approve_members(&key, [other.public().to_string()])
+            .unwrap();
+        p.validate().unwrap();
+        p.set_names(&key, Default::default()).unwrap();
+        assert!(p.role_names_signature.is_none());
+        p.validate().unwrap();
     }
 }

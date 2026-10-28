@@ -114,7 +114,20 @@ pub fn notification_body(text: &str, preview: bool, mentioned: bool) -> String {
         {
             return "Image".into();
         }
-        text.chars()
+        // Revealing a message preview must not implicitly reveal a spoiler.
+        let mut visible = String::new();
+        let mut remaining = text;
+        while let Some(start) = remaining.find("||") {
+            let Some(end) = remaining[start + 2..].find("||") else {
+                break;
+            };
+            visible.push_str(&remaining[..start]);
+            visible.push_str("[Spoiler]");
+            remaining = &remaining[start + 2 + end + 2..];
+        }
+        visible.push_str(remaining);
+        visible
+            .chars()
             .map(|c| if c.is_control() { ' ' } else { c })
             .take(160)
             .collect()
@@ -261,6 +274,14 @@ mod tests {
         assert_eq!(
             notification_body("Hello\nAlice", true, false),
             "Hello Alice"
+        );
+        assert_eq!(
+            notification_body("Hi ||private 👋|| and ||secret||", true, false),
+            "Hi [Spoiler] and [Spoiler]"
+        );
+        assert_eq!(
+            notification_body("Unclosed ||literal", true, false),
+            "Unclosed ||literal"
         );
     }
     #[test]

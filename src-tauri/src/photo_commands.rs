@@ -15,14 +15,7 @@ pub async fn choose_photo_source(
             } else {
                 "Choose room illustration"
             })
-            .add_filter(
-                "Image",
-                if profile {
-                    &["png", "jpg", "jpeg", "webp", "gif"][..]
-                } else {
-                    &["png", "jpg", "jpeg", "webp"][..]
-                },
-            )
+            .add_filter("Image", &["png", "jpg", "jpeg", "webp", "gif"][..])
             .blocking_pick_file()
     })
     .await
@@ -73,4 +66,12 @@ pub async fn save_cropped_photo(
             .await
             .map_err(error)
     }
+}
+
+#[tauri::command]
+pub async fn photo_detail(state: State<'_, DesktopState>, hash: String) -> Reply<Option<String>> {
+    let account = node(&state).await?;
+    tauri::async_runtime::spawn_blocking(move || account.photo_detail(&hash).map_err(error))
+        .await
+        .map_err(error)?
 }

@@ -51,12 +51,14 @@ pub async fn save_room_roles(
     room: Uuid,
     roles: BTreeMap<String, Role>,
     permissions: BTreeMap<Role, Permissions>,
+    role_colors: Option<BTreeMap<Role, String>>,
+    role_names: Option<BTreeMap<Role, String>>,
 ) -> Reply<Policy> {
     node(&state)
         .await?
         .room_node(room)
         .map_err(error)?
-        .set_room_roles(roles, permissions)
+        .set_room_roles_with_appearance(roles, permissions, role_colors, role_names)
         .await
         .map_err(error)
 }

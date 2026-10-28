@@ -668,6 +668,7 @@ impl Vault {
             format!("missed_call/{room}/"),
             format!("history/{room}/"),
             format!("file_decisions/{room}/"),
+            format!("room_image_detail/{room}"),
         ];
         let room_key = format!("room/{room}");
         let bank_key = format!("emojis/bank/{room}");
@@ -831,6 +832,12 @@ impl Vault {
                 object.key.len() <= 512 && object.key.is_ascii(),
                 "Invalid backup record"
             );
+            if object.key == "profile/conversations" {
+                serde_json::from_value::<crate::settings::ConversationLayout>(
+                    object.value.clone(),
+                )?
+                .validate()?;
+            }
             if let Some(room) = object.key.strip_prefix("channels/") {
                 let room: Uuid = room.parse().context("Invalid channel catalogue identity")?;
                 let archive = objects
@@ -856,6 +863,11 @@ impl Vault {
                 !object.key.starts_with("blob-index/"),
                 "Backup contains an internal image index"
             );
+            if object.key == "profile/avatar_detail" || object.key.starts_with("room_image_detail/")
+            {
+                serde_json::from_value::<crate::photo::PhotoDetail>(object.value.clone())?
+                    .data_url()?;
+            }
             if object.key.starts_with("inline/") {
                 let asset: crate::inline_images::ImageAsset =
                     serde_json::from_value(object.value.clone())?;

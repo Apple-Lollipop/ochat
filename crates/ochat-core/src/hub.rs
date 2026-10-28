@@ -696,6 +696,9 @@ impl ChatHub {
     pub fn play_ping(&self) -> bool {
         self.clients().iter().any(|n| n.play_ping())
     }
+    pub fn play_file_cue(&self) -> bool {
+        self.clients().iter().any(|n| n.play_file_cue())
+    }
     pub async fn send_text(&self, text: &str) -> Result<usize> {
         self.current().send_text(text).await
     }
@@ -1070,6 +1073,9 @@ impl ChatHub {
         self.client(room)
             .unwrap_or_else(|| self.root.clone())
             .room_emojis(room)
+    }
+    pub fn photo_detail(&self, hash: &str) -> Result<Option<String>> {
+        self.root.photo_detail(hash)
     }
     pub fn emoji_asset(&self, hash: &str) -> Result<Option<EmojiAsset>> {
         if let Some(asset) = self.root.emoji_asset(hash)? {

@@ -68,6 +68,12 @@ impl EmojiAsset {
         let orientation = decoder.orientation()?;
         let mut image = image::DynamicImage::from_decoder(decoder)?;
         image.apply_orientation(orientation);
+        // Keep the same resampling path as the encrypted local full-size preview.
+        let image = if image.width() > 512 || image.height() > 512 {
+            image.thumbnail(512, 512)
+        } else {
+            image
+        };
         let image = image.resize_to_fill(128, 128, FilterType::Lanczos3);
         let mut png = Cursor::new(Vec::new());
         image.write_to(&mut png, ImageFormat::Png)?;

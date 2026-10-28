@@ -22,6 +22,24 @@ fn local_removal_and_preferences_survive_backup_without_retaining_history() {
             &ochat_core::settings::ConversationLayout {
                 order: vec![room, kept],
                 pinned: vec![room, kept],
+                preferences: std::collections::HashMap::from([
+                    (
+                        room,
+                        ochat_core::settings::ConversationPreference {
+                            nickname: "Removed alias".into(),
+                            folder: "Personal".into(),
+                            color: Some("#112233".into()),
+                        },
+                    ),
+                    (
+                        kept,
+                        ochat_core::settings::ConversationPreference {
+                            nickname: "My local team".into(),
+                            folder: "Work".into(),
+                            color: Some("#AABBCC".into()),
+                        },
+                    ),
+                ]),
             },
         )
         .unwrap();
@@ -86,6 +104,10 @@ fn local_removal_and_preferences_survive_backup_without_retaining_history() {
         restored.get("profile/conversations").unwrap().unwrap();
     assert_eq!(layout.order, vec![kept]);
     assert_eq!(layout.pinned, vec![kept]);
+    assert!(!layout.preferences.contains_key(&room));
+    assert_eq!(layout.preferences[&kept].nickname, "My local team");
+    assert_eq!(layout.preferences[&kept].folder, "Work");
+    assert_eq!(layout.preferences[&kept].color.as_deref(), Some("#AABBCC"));
     assert!(
         restored
             .get::<String>(&format!("room_image/{room}"))

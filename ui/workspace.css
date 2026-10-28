@@ -3,3 +3,20 @@
 .discord-shell #account-controls{height:auto;min-height:78px;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;row-gap:4px}.discord-shell #account-controls>.profile{min-width:0}.discord-shell #availability-select{grid-row:2}
 #thread-dialog[open]{display:flex;flex-direction:column;height:min(760px,calc(100dvh - 24px));overflow:hidden}#thread-dialog>.workspace-heading,#thread-context,.thread-pages,#thread-composer{flex-shrink:0}#thread-messages{flex:1;min-height:64px;max-height:none}#thread-context{margin-bottom:12px}#thread-message{max-height:min(160px,24dvh)}
 .discord-shell #thread-message{font-family:'Ochat Input Text','Ochat Twemoji',sans-serif;font-variant-emoji:normal;font-feature-settings:'ccmp' 1,'rlig' 1}
+/* Conversation controls become cards without removing requests, search or actions. */
+.discord-shell #navigation-friends{max-width:1100px}
+.discord-shell #navigation-friends :is(#accepted-friend-list,#received-friend-list,#sent-friend-list){display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:16px;align-items:start}
+.discord-shell #navigation-friends .friend-row{display:flex;flex-direction:column;align-items:stretch;gap:12px;padding:18px;min-width:0;box-sizing:border-box;border:1px solid var(--line);border-radius:16px;background:var(--panel);box-shadow:0 2px 8px #00000005}
+.discord-shell #navigation-friends .friend-heading{padding:0;gap:12px;width:100%;min-width:0;background:transparent;border:0}
+.discord-shell #navigation-friends .friend-heading .avatar{width:44px;height:44px;min-width:44px}
+.discord-shell #navigation-friends .friend-heading strong{font-size:14px;line-height:1.45;text-align:left}
+.discord-shell #navigation-friends .friend-row>small{margin:0;line-height:1.5}
+.discord-shell #navigation-friends .friend-controls{display:flex;gap:8px;justify-content:space-between;margin:0;width:100%;align-self:stretch;grid-column:auto;grid-row:auto}
+.discord-shell #navigation-friends .friend-controls>.text-button:not(.danger){flex:1;border:1px solid var(--line);background:var(--field);border-radius:9px}
+.discord-shell #navigation-friends .request-error,.discord-shell #navigation-friends .request-help{margin:0;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.discord-shell #navigation-friends .friend-more-content{z-index:8;min-width:150px;max-width:210px}
+.discord-shell #navigation-friends .friend-row:focus-within{border-color:var(--accent)}
+.discord-shell #navigation-friends .empty-small{grid-column:1/-1}
+@media(min-width:1550px){.discord-shell #navigation-friends :is(#accepted-friend-list,#received-friend-list,#sent-friend-list){grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:520px){.discord-shell #navigation-friends :is(#accepted-friend-list,#received-friend-list,#sent-friend-list){grid-template-columns:1fr}.discord-shell #navigation-friends .friend-row{padding:16px}}
+.thread-message-body{font-size:14px;white-space:pre-wrap;margin:10px 0;line-height:1.55;overflow-wrap:anywhere}

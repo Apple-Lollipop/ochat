@@ -1,4 +1,33 @@
-# Ochat 0.12.6
+# Ochat 0.12.9
+
+## Changes in 0.12.9
+
+- Role colors now use a fine avatar contour (selected preview 3), with neutral, undecorated names. Presence remains separate and the green speaking aura takes precedence while talking.
+- Custom role labels and the compact Conversations **+** menu are retained.
+- Windows EXE and Linux DEB/AppImage: see `releases/reports/RELEASE-0.12.9.json` for validation and SHA-256 hashes. No local macOS build.
+
+## Changes in 0.12.8
+
+- Room owners can customize the names of the four existing role types in **Room access → Role names & colors**. Empty names restore their default. Permission types remain unchanged.
+- Role names are bounded, owner-signed, synchronized and encrypted with the existing room policy. Authorization and invitation signatures retain their compatible representation.
+- Member, voice, message and profile names use the room role color with readable text and a subtle exact-color underline. Private chats keep their normal appearance.
+- **New group**, **Invite one person** and **Join with invitation** now live in the **+** menu beside **Conversations**, freeing the channel list. Existing rail shortcuts still work; Escape, outside click and keyboard navigation are supported.
+- Windows x64 executable only: `releases/Windows/Ochat_0.12.8_x64.exe`. Validation and platform limits: `releases/reports/WINDOWS-BUILD-0.12.8.json`.
+
+## Changes in 0.12.7
+
+Windows executable: `releases/Windows/Ochat_0.12.7_x64.exe`. Checksums: `releases/Windows/SHA256SUMS-0.12.7`. Validation: `releases/reports/WINDOWS-BUILD-0.12.7.json`.
+
+- **Room access** shows member photos, full readable names and identities beside role controls. Owner-selected role colors have a separate cosmetic signature; existing permission, invitation and admission proofs remain compatible.
+- **Friends** uses responsive cards, up to four per row when space permits. Requests, search, messaging and contact management remain available.
+- Voice participants show measured connection RTT, mute/deafen controls and a stable speaker icon with an avatar aura during transmitted speech. Offline members lose stale availability colors. Room join notices include a visible local time.
+- The composer supports **bold**, bullet/numbered lists, fenced/inline code and `||spoilers||`, with formatting buttons and Ctrl/Cmd+B. HTML remains literal. Spoilers and code examples do not trigger automatic link previews.
+- Replies show image thumbnails; discussion threads retain full image/GIF controls, including favorites. New file offers have a distinct local tone, honoring existing sound preferences, deduplication and throttling.
+- **Conversation actions → Organize conversation…** edits a local nickname, folder and color. These preferences do not rename users or rooms for anyone else, survive pin/reorder, and stay in the encrypted account and backups.
+- Room illustrations accept bounded animated GIFs and explicit cropping. New static photo imports keep a local encrypted preview up to 512 px; peer icons retain existing 128 px transport limits. Existing or remotely received low-resolution icons cannot recover lost detail and are no longer enlarged excessively. Higher-resolution local previews are included in encrypted backups.
+- The desktop window starts centered. The project, CI and Linux bootstrap use Node.js **24.22.1 LTS** (`.node-version` / `.nvmrc`); this does not replace a machine-wide Node installation.
+
+Windows 0.12.7 is delivered as an executable only. Linux and macOS binaries are not rebuilt for this update. Hardware microphone/camera tests and physical multi-device checks remain separate from automated validation.
 
 ## Changes in 0.12.6
 
@@ -86,7 +115,7 @@ Native Tauri 2 and Rust desktop messaging for Windows, Linux and macOS. English 
 
 ## Release folders
 
-The latest Windows application is `releases/Windows/Ochat_0.12.6_x64.exe`; Linux packages are `releases/Linux/Ochat_0.12.6_amd64.deb` and `releases/Linux/Ochat_0.12.6_amd64.AppImage`. Earlier deliverables are preserved and do not contain this security update. SHA-256 files and release manifests identify the artifacts. macOS arm64 DMGs are produced by the manually triggered `.github/workflows/macos.yml` workflow; no macOS application was built or physically tested on this Windows host. See `releases/reports/VALIDATION-0.12.6.html` for executed checks and remaining hardware/platform limits.
+The latest Windows application is `releases/Windows/Ochat_0.12.9_x64.exe`; Linux packages are `releases/Linux/Ochat_0.12.9_amd64.deb` and `releases/Linux/Ochat_0.12.9_amd64.AppImage`. Earlier deliverables are preserved and do not contain this security update. SHA-256 files and release manifests identify the artifacts. macOS arm64 DMGs are produced by the manually triggered `.github/workflows/macos.yml` workflow; no macOS application was built or physically tested on this Windows host. See `releases/reports/VALIDATION-0.12.6.html` for executed checks and remaining hardware/platform limits.
 
 ## Changes in 0.11.2
 
@@ -309,7 +338,7 @@ Open groups still use a full peer-to-peer mesh: removing the membership quota do
 
 An OS-generated 256-bit root key derives separate identity, vault and backup keys through HKDF-SHA-256. Argon2id (64 MiB, three passes, parallelism one) derives the local password wrapping key; XChaCha20-Poly1305 authenticates encrypted roots, SQLite records and backups. The plaintext header contains format/version, random profile identifier, salt, nonce and wrapped root. Account data is encrypted before SQLite writes. The private recovery key is returned only by creation or explicit password-confirmed reveal, never in ordinary snapshots. Lock disconnects peers and removes decrypted account content from the interface. This does not guarantee forensic memory erasure or protection from compromised devices, swap or system crash dumps.
 
-Audio uses mono 16-bit 16 kHz PCM in 20 ms packets (~256 kbit/s per recipient before overhead), with 10 ms native processing blocks, sinc resampling, bounded queues and call/session identifiers. Audio stays in Rust. There is no Opus codec or advanced packet-loss recovery. Device changes preserve mute; unavailable selected devices produce an error rather than silently selecting another device. System-default selections follow the OS's configured default when a new stream is explicitly opened.
+Voice uses bundled static **Opus**, mono **48 kHz**, **20 ms** packets and a target bitrate of **64 kbit/s** per recipient before transport overhead. Native processing uses 10 ms blocks, sinc resampling and bounded queues. The receive jitter buffer handles reordering, Opus in-band FEC and packet-loss concealment, and returns to silence after prolonged loss. Call, channel and session identifiers isolate media. Audio capture and processing stay in Rust. Device changes preserve mute; unavailable selected devices produce an error rather than silently selecting another device. System-default selections follow the OS's configured default when a new stream is explicitly opened. See `crates/ochat-core/src/voice_codec.rs` and `voice_jitter.rs` for the current codec and recovery implementation.
 
 The shared bank allows 100 visible entries per room, retains up to 1,000 revision/tombstone entries, and uses deterministic conflict resolution for concurrent edits. The local asset store is capped at 1,600 images. Offline changes converge when peers reconnect; another participant can remove or rename an entry again.
 

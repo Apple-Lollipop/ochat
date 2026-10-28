@@ -143,6 +143,25 @@ impl ChatNode {
         roles: std::collections::BTreeMap<String, Role>,
         permissions: std::collections::BTreeMap<Role, Permissions>,
     ) -> Result<Policy> {
+        self.set_room_roles_with_colors(roles, permissions, None)
+            .await
+    }
+    pub async fn set_room_roles_with_colors(
+        &self,
+        roles: std::collections::BTreeMap<String, Role>,
+        permissions: std::collections::BTreeMap<Role, Permissions>,
+        colors: Option<std::collections::BTreeMap<Role, String>>,
+    ) -> Result<Policy> {
+        self.set_room_roles_with_appearance(roles, permissions, colors, None)
+            .await
+    }
+    pub async fn set_room_roles_with_appearance(
+        &self,
+        roles: std::collections::BTreeMap<String, Role>,
+        permissions: std::collections::BTreeMap<Role, Permissions>,
+        colors: Option<std::collections::BTreeMap<Role, String>>,
+        names: Option<std::collections::BTreeMap<Role, String>>,
+    ) -> Result<Policy> {
         let (room, owner) = self
             .room
             .lock()
@@ -178,6 +197,15 @@ impl ChatNode {
             }
         }
         policy.approve_members(self.endpoint.secret_key(), approved)?;
+        let colors = colors.unwrap_or_else(|| {
+            self.room_policy()
+                .map(|p| p.role_colors)
+                .unwrap_or_default()
+        });
+        policy.set_colors(self.endpoint.secret_key(), colors)?;
+        let names =
+            names.unwrap_or_else(|| self.room_policy().map(|p| p.role_names).unwrap_or_default());
+        policy.set_names(self.endpoint.secret_key(), names)?;
         self.merge_policy(policy.clone())?;
         self.broadcast(Wire::RoomPolicy {
             policy: policy.clone(),

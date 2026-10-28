@@ -212,6 +212,46 @@ impl Effects {
                     output_sound(app.clone(), settings, cancel, false);
                 }
             }
+            Event::FileOffered {
+                room,
+                peer,
+                offer,
+                outgoing: false,
+                ..
+            } => {
+                let settings = node.settings().for_channel(*room, offer.channel);
+                let direct = node.snapshots().iter().any(|snapshot| {
+                    snapshot
+                        .room
+                        .as_ref()
+                        .is_some_and(|value| value.id == *room && value.capacity == 2)
+                });
+                let enabled =
+                    ochat_core::notifications::room_sound(&settings, *room, direct, false);
+                if self.last_ping.lock().unwrap().consider(
+                    offer.id,
+                    peer,
+                    &node.id(),
+                    true,
+                    enabled,
+                ) && !node.play_file_cue()
+                    && self.ring.lock().unwrap().is_none()
+                {
+                    let cancel = Arc::new(AtomicBool::new(false));
+                    if let Some(old) = self.ping.lock().unwrap().replace(cancel.clone()) {
+                        old.store(true, Ordering::Release);
+                    }
+                    tauri::async_runtime::spawn_blocking(move || {
+                        let _ = audio::play_output(
+                            audio::file_notification_samples(),
+                            settings.audio,
+                            settings.sound_volume,
+                            cancel,
+                            false,
+                        );
+                    });
+                }
+            }
             Event::CallEnded { room, .. } => {
                 if self
                     .ring
@@ -910,7 +950,7 @@ async fn set_room_illustration(
             app.dialog()
                 .file()
                 .set_title("Choose room illustration")
-                .add_filter("Static image", &["png", "jpg", "jpeg", "webp"])
+                .add_filter("Image", &["png", "jpg", "jpeg", "webp", "gif"])
                 .blocking_pick_file()
         })
         .await
@@ -1439,6 +1479,7 @@ fn main() {
             choose_profile_photo,
             choose_photo_source,
             save_cropped_photo,
+            photo_detail,
             remove_profile_photo
         ])
         .build(tauri::generate_context!())

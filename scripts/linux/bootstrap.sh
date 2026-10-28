@@ -13,10 +13,11 @@ apt-get install -y --no-install-recommends \
 
 mkdir -p /opt/ochat-node /opt/ochat-downloads
 cd /opt/ochat-downloads
-curl --fail --location --retry 3 https://nodejs.org/dist/latest-v24.x/SHASUMS256.txt -o SHASUMS256.txt
+node_version=24.22.1
+curl --fail --location --retry 3 "https://nodejs.org/dist/v${node_version}/SHASUMS256.txt" -o SHASUMS256.txt
 archive=$(awk '$2 ~ /^node-v24\.[0-9]+\.[0-9]+-linux-x64\.tar\.xz$/ {print $2}' SHASUMS256.txt)
 test -n "$archive"
-curl --fail --location --retry 3 "https://nodejs.org/dist/latest-v24.x/$archive" -o "$archive"
+curl --fail --location --retry 3 "https://nodejs.org/dist/v${node_version}/$archive" -o "$archive"
 grep "  $archive$" SHASUMS256.txt | sha256sum --check -
 tar -xf "$archive" -C /opt/ochat-node --strip-components=1
 id ochat-smoke >/dev/null 2>&1 || useradd --create-home ochat-smoke

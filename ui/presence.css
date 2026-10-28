@@ -21,3 +21,13 @@
 #peer-room-role{margin:0;line-height:1.2}
 #peer-room-role:empty,#peer-room-role[hidden]{display:none!important}
 @media(forced-colors:active){.member-role{border-color:CanvasText;color:CanvasText}.voice-state-badges{color:CanvasText}}
+/* Stable activity feedback: the worker supplies the activity state; CSS never pulses. */
+.discord-shell [data-voice-speaking] .speaking-dot{display:inline-flex!important;align-items:center;justify-content:center;width:20px!important;height:20px!important;min-width:20px;flex:0 0 20px;border-radius:50%;background:transparent!important;box-shadow:none!important;animation:none!important;visibility:hidden;opacity:0;color:var(--success,#23a55a)}
+.discord-shell [data-voice-speaking=true] .speaking-dot{visibility:visible;opacity:1;background:color-mix(in srgb,var(--success,#23a55a) 14%,transparent)!important}
+.discord-shell [data-voice-speaking] .speaking-dot svg{display:block;width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.discord-shell [data-voice-speaking=true] .avatar{outline:2px solid var(--success,#23a55a);outline-offset:2px;box-shadow:0 0 0 5px color-mix(in srgb,var(--success,#23a55a) 13%,transparent)}
+.discord-shell [data-voice-speaking=false] .avatar{outline:0;box-shadow:none}
+.discord-shell .voice-peer-ping{font-size:10px;line-height:1.4;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none;margin-inline-start:auto}
+.voice-peer-ping[hidden]{display:none!important}
+.member-role[style*="--role-color"]::before{content:'';display:inline-block;flex:none;width:7px;height:7px;margin-inline-end:5px;border-radius:50%;background:var(--role-color);box-shadow:0 0 0 1px color-mix(in srgb,var(--text) 15%,transparent)}
+@media(forced-colors:active){.discord-shell [data-voice-speaking=true] .avatar{outline-color:Highlight;box-shadow:none}.discord-shell [data-voice-speaking=true] .speaking-dot{color:Highlight;background:Canvas!important}.member-role::before{forced-color-adjust:none}}

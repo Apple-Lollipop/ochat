@@ -32,6 +32,22 @@ mod microphone_permission;
 const RATE: u32 = crate::voice_codec::RATE;
 const BLOCK: usize = 480;
 #[cfg(test)]
+mod file_cue_tests {
+    #[test]
+    fn attachment_cue_is_distinct_bounded_and_finite() {
+        let samples = super::file_notification_samples();
+        assert_eq!(samples.len(), 19_200);
+        assert!(
+            samples
+                .iter()
+                .all(|sample| sample.is_finite() && sample.abs() <= 0.121)
+        );
+        assert!(samples.iter().any(|sample| sample.abs() > 0.01));
+        assert_ne!(samples, super::notification_samples(false));
+    }
+}
+
+#[cfg(test)]
 const FRAME: usize = crate::voice_codec::FRAME;
 const MAX_BUFFER: usize = 9600;
 type Errors = Arc<Mutex<Option<String>>>;
@@ -248,6 +264,12 @@ impl AudioSession {
         let mut q = self.shared.tones.lock().unwrap();
         if q.len() < 4 {
             q.push_back((notification_samples(false), volume));
+        }
+    }
+    pub fn play_file_cue(&self, volume: f32) {
+        let mut q = self.shared.tones.lock().unwrap();
+        if q.len() < 4 {
+            q.push_back((file_notification_samples(), volume));
         }
     }
     pub fn play_voice_cue(&self, joined: bool, volume: f32) {
@@ -788,6 +810,26 @@ pub fn notification_samples(ring: bool) -> Vec<f32> {
     };
     asset_samples(data)
 }
+/// A short two-note attachment cue, generated locally at the mixer sample rate.
+pub fn file_notification_samples() -> Vec<f32> {
+    (0..19_200)
+        .map(|index| {
+            let time = index as f32 / 48_000.0;
+            let (start, frequency) = if time < 0.16 {
+                (0.0, 660.0)
+            } else {
+                (0.19, 880.0)
+            };
+            let phase = time - start;
+            if !(0.0..0.15).contains(&phase) {
+                return 0.0;
+            }
+            let envelope = (phase / 0.008).min(1.0) * ((0.15 - phase) / 0.06).min(1.0);
+            (phase * frequency * std::f32::consts::TAU).sin() * envelope * 0.12
+        })
+        .collect()
+}
+
 fn asset_samples(data: &[u8]) -> Vec<f32> {
     let source: Vec<f32> = data
         .chunks_exact(2)

@@ -103,6 +103,8 @@ pub struct RoomView {
 
 #[derive(Clone, Serialize)]
 pub struct Snapshot {
+    pub role_names: std::collections::BTreeMap<crate::governance::Role, String>,
+    pub role_colors: std::collections::BTreeMap<crate::governance::Role, String>,
     pub role: Option<crate::governance::Role>,
     pub permissions: crate::governance::Permissions,
     pub availability: String,
@@ -743,11 +745,23 @@ impl ChatNode {
     }
     pub fn set_profile_photo(&self, image: Option<Vec<u8>>) -> Result<()> {
         let avatar = image
-            .map(|bytes| EmojiAsset::from_profile_avatar(&bytes))
+            .as_ref()
+            .map(|bytes| EmojiAsset::from_profile_avatar(bytes))
             .transpose()?;
+        let detail = image
+            .as_ref()
+            .zip(avatar.as_ref())
+            .map(|(bytes, avatar)| crate::photo::PhotoDetail::create(bytes, &avatar.hash))
+            .transpose()?
+            .flatten();
         if let Some(vault) = &self.vault {
             if let Some(avatar) = &avatar {
                 vault.put("profile/avatar", avatar)?;
+                if let Some(detail) = detail {
+                    vault.put("profile/avatar_detail", &detail)?;
+                } else {
+                    vault.delete_prefix("profile/avatar_detail")?;
+                }
             } else {
                 vault.delete_prefix("profile/avatar")?;
             }
@@ -1261,6 +1275,14 @@ impl ChatNode {
             )
         };
         Snapshot {
+            role_names: role_policy
+                .as_ref()
+                .map(|p| p.role_names.clone())
+                .unwrap_or_default(),
+            role_colors: role_policy
+                .as_ref()
+                .map(|p| p.role_colors.clone())
+                .unwrap_or_default(),
             role: room.as_ref().and_then(|r| {
                 Self::member_role(r.id, r.ownership.as_ref(), role_policy.as_ref(), &self.id())
             }),
@@ -3975,12 +3997,27 @@ impl ChatNode {
             "Only the room owner can change its illustration"
         );
         let hash = if let Some(bytes) = bytes {
-            let asset =
-                tokio::task::spawn_blocking(move || EmojiAsset::from_avatar(&bytes)).await??;
+            let (asset, detail) = tokio::task::spawn_blocking(move || {
+                let asset = EmojiAsset::from_profile_avatar(&bytes)?;
+                let detail = crate::photo::PhotoDetail::create(&bytes, &asset.hash)?;
+                Ok::<_, anyhow::Error>((asset, detail))
+            })
+            .await??;
+            if let Some(vault) = &self.vault {
+                let key = format!("room_image_detail/{}", room.id);
+                if let Some(detail) = detail {
+                    vault.put(&key, &detail)?;
+                } else {
+                    vault.delete_prefix(&key)?;
+                }
+            }
             let hash = asset.hash.clone();
             self.store_asset(room.id, asset)?;
             Some(hash)
         } else {
+            if let Some(vault) = &self.vault {
+                vault.delete_prefix(&format!("room_image_detail/{}", room.id))?;
+            }
             None
         };
         let revision = self.room_illustration(room.id).map_or(Ok(1), |old| {
@@ -4023,6 +4060,9 @@ impl ChatNode {
             known.contains(id) && !deleted.contains_key(id) && !self.is_forgotten(*id)
         });
         layout.pinned.retain(|id| layout.order.contains(id));
+        layout.preferences.retain(|id, _| {
+            known.contains(id) && !deleted.contains_key(id) && !self.is_forgotten(*id)
+        });
         if let Some(vault) = &self.vault {
             vault.put("profile/conversations", &layout)?;
         }
@@ -4038,6 +4078,14 @@ impl ChatNode {
     pub fn play_ping(&self) -> bool {
         if let Some(audio) = self.audio.lock().unwrap().as_ref() {
             audio.play_ping(self.settings().sound_volume);
+            true
+        } else {
+            false
+        }
+    }
+    pub fn play_file_cue(&self) -> bool {
+        if let Some(audio) = self.audio.lock().unwrap().as_ref() {
+            audio.play_file_cue(self.settings().sound_volume);
             true
         } else {
             false
@@ -4293,6 +4341,34 @@ impl ChatNode {
             data_url,
         });
         Ok(())
+    }
+    pub fn photo_detail(&self, hash: &str) -> Result<Option<String>> {
+        ensure!(emoji::valid_hash(hash), "Invalid photo hash");
+        let Some(vault) = &self.vault else {
+            return Ok(None);
+        };
+        if self.avatar_hash().as_deref() == Some(hash) {
+            if let Some(detail) = vault.get::<crate::photo::PhotoDetail>("profile/avatar_detail")? {
+                if detail.hash == hash {
+                    return detail.data_url().map(Some);
+                }
+            }
+        }
+        // Inspect small room metadata first, rather than decrypting every large
+        // photo whenever a profile is opened.
+        for image in vault.list::<crate::rooms::RoomIllustration>("room_image/")? {
+            if image.hash.as_deref() == Some(hash) {
+                if let Some(detail) = vault.get::<crate::photo::PhotoDetail>(&format!(
+                    "room_image_detail/{}",
+                    image.room
+                ))? {
+                    if detail.hash == hash {
+                        return detail.data_url().map(Some);
+                    }
+                }
+            }
+        }
+        Ok(None)
     }
     pub fn emoji_asset(&self, hash: &str) -> Result<Option<EmojiAsset>> {
         if let Some(avatar) = self

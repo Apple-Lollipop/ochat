@@ -56,13 +56,9 @@ fn decode(bytes: &[u8]) -> Result<DynamicImage> {
     image.apply_orientation(orientation);
     Ok(image)
 }
-pub fn prepare(bytes: &[u8], profile: bool) -> Result<PhotoSource> {
+pub fn prepare(bytes: &[u8], _profile: bool) -> Result<PhotoSource> {
     let animated = bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a");
-    if profile {
-        EmojiAsset::from_profile_avatar(bytes)?;
-    } else {
-        EmojiAsset::from_image(bytes)?;
-    }
+    EmojiAsset::from_profile_avatar(bytes)?;
     let image = decode(bytes)?;
     let (width, height) = (image.width(), image.height());
     let mut preview = Cursor::new(Vec::new());
@@ -80,29 +76,121 @@ pub fn prepare(bytes: &[u8], profile: bool) -> Result<PhotoSource> {
         animated,
     })
 }
-pub fn crop(bytes: &[u8], rect: CropRect, profile: bool) -> Result<Vec<u8>> {
+pub fn crop(bytes: &[u8], rect: CropRect, _profile: bool) -> Result<Vec<u8>> {
     ensure!(
         bytes.len() <= 10 * 1024 * 1024,
         "Choose an image smaller than 10 MiB"
     );
     if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
-        ensure!(profile, "Use a static image for a room illustration");
         return EmojiAsset::from_profile_avatar_with_crop(bytes, Some(&rect))?.bytes();
     }
     EmojiAsset::from_image(bytes)?;
-    let image = rect.apply(&decode(bytes)?)?.resize_to_fill(
-        128,
-        128,
-        image::imageops::FilterType::Lanczos3,
-    );
+    let image = rect.apply(&decode(bytes)?)?;
+    let image = if image.width() > 512 || image.height() > 512 {
+        image.thumbnail(512, 512)
+    } else {
+        image
+    };
     let mut png = Cursor::new(Vec::new());
     image.write_to(&mut png, ImageFormat::Png)?;
     Ok(png.into_inner())
 }
 
+/// Local full-size photo preview. Network icons retain their existing size limits.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct PhotoDetail {
+    pub hash: String,
+    png: String,
+}
+impl PhotoDetail {
+    pub fn create(bytes: &[u8], hash: &str) -> Result<Option<Self>> {
+        if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+            return Ok(None);
+        }
+        EmojiAsset::from_image(bytes)?;
+        let image = decode(bytes)?;
+        let image = if image.width() > 512 || image.height() > 512 {
+            image.thumbnail(512, 512)
+        } else {
+            image
+        };
+        let mut output = Cursor::new(Vec::new());
+        image.write_to(&mut output, ImageFormat::Png)?;
+        ensure!(
+            output.get_ref().len() <= 2 * 1024 * 1024,
+            "Photo preview is too large"
+        );
+        Ok(Some(Self {
+            hash: hash.into(),
+            png: STANDARD.encode(output.into_inner()),
+        }))
+    }
+    pub fn data_url(&self) -> Result<String> {
+        ensure!(
+            crate::emoji::valid_hash(&self.hash) && self.png.len() <= 2 * 1024 * 1024 * 4 / 3 + 4,
+            "Invalid photo preview"
+        );
+        let bytes = STANDARD.decode(&self.png)?;
+        let (width, height) =
+            image::ImageReader::with_format(Cursor::new(&bytes), ImageFormat::Png)
+                .into_dimensions()?;
+        ensure!(
+            (1..=512).contains(&width) && (1..=512).contains(&height),
+            "Invalid photo preview dimensions"
+        );
+        image::load_from_memory_with_format(&bytes, ImageFormat::Png)?;
+        ensure!(
+            EmojiAsset::from_avatar(&bytes)?.hash == self.hash,
+            "Photo preview does not match its icon"
+        );
+        Ok(format!("data:image/png;base64,{}", self.png))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn local_photo_details_keep_resolution_and_validate_against_the_wire_icon() {
+        let image = image::RgbaImage::from_fn(600, 600, |x, y| {
+            image::Rgba([(x / 3) as u8, (y / 3) as u8, 180, 255])
+        });
+        let mut png = Cursor::new(Vec::new());
+        image.write_to(&mut png, ImageFormat::Png).unwrap();
+        let source = png.into_inner();
+        let cropped = crop(
+            &source,
+            CropRect {
+                x: 0.0,
+                y: 0.0,
+                width: 1.0,
+                height: 1.0,
+            },
+            false,
+        )
+        .unwrap();
+        assert_eq!(image::load_from_memory(&cropped).unwrap().width(), 512);
+        let icon = EmojiAsset::from_avatar(&cropped).unwrap();
+        assert_eq!(
+            image::load_from_memory(&icon.bytes().unwrap())
+                .unwrap()
+                .width(),
+            128
+        );
+        let detail = PhotoDetail::create(&cropped, &icon.hash).unwrap().unwrap();
+        assert!(
+            detail
+                .data_url()
+                .unwrap()
+                .starts_with("data:image/png;base64,")
+        );
+        let mut invalid = detail.clone();
+        invalid.hash = "a".repeat(64);
+        assert!(invalid.data_url().is_err());
+        let mut invalid = detail;
+        invalid.png = STANDARD.encode(b"not an image");
+        assert!(invalid.data_url().is_err());
+    }
     #[test]
     fn crop_uses_the_requested_region_and_invalid_coordinates_are_rejected() {
         let image = image::RgbaImage::from_fn(400, 200, |x, _| {
@@ -125,7 +213,7 @@ mod tests {
         };
         let result = crop(&bytes, right, false).unwrap();
         let decoded = image::load_from_memory(&result).unwrap().to_rgba8();
-        assert_eq!(decoded.dimensions(), (128, 128));
+        assert_eq!(decoded.dimensions(), (200, 200));
         assert_eq!(decoded.get_pixel(64, 64).0, [0, 255, 0, 255]);
         assert!(crop(&bytes, CropRect { x: 0.75, ..right }, false).is_err());
         assert!(
@@ -191,6 +279,10 @@ mod tests {
         assert_eq!(frames[0].buffer().get_pixel(64, 64).0, [0, 255, 0, 255]);
         assert_eq!(frames[1].buffer().get_pixel(64, 64).0, [255, 255, 0, 255]);
         assert_eq!(frames[0].delay().numer_denom_ms(), (120, 1));
-        assert!(crop(&bytes, rect, false).is_err());
+        let room = crop(&bytes, rect, false).unwrap();
+        assert_eq!(
+            room, result,
+            "Room illustrations keep the same bounded GIF frames"
+        );
     }
 }

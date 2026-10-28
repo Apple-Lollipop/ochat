@@ -3,15 +3,52 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+pub fn valid_color(value: &str) -> bool {
+    value.len() == 7
+        && value.starts_with('#')
+        && value.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit)
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ConversationPreference {
+    pub nickname: String,
+    pub folder: String,
+    pub color: Option<String>,
+}
+impl ConversationPreference {
+    pub fn validate(&self) -> Result<()> {
+        for value in [&self.nickname, &self.folder] {
+            ensure!(
+                value.chars().count() <= 80 && !value.chars().any(char::is_control),
+                "Use a name of up to 80 characters without control characters"
+            );
+        }
+        ensure!(
+            self.color.as_ref().is_none_or(|v| valid_color(v)),
+            "Use a conversation color in #RRGGBB format"
+        );
+        Ok(())
+    }
+}
+
 /// Stored separately so rearranging tabs cannot overwrite audio preferences.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ConversationLayout {
     pub order: Vec<Uuid>,
     pub pinned: Vec<Uuid>,
+    pub preferences: HashMap<Uuid, ConversationPreference>,
 }
 impl ConversationLayout {
     pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.preferences.len() <= 4096,
+            "Too many conversation preferences"
+        );
+        for preference in self.preferences.values() {
+            preference.validate()?;
+        }
         let unique: std::collections::HashSet<_> = self.order.iter().collect();
         let pins: std::collections::HashSet<_> = self.pinned.iter().collect();
         ensure!(
@@ -27,6 +64,7 @@ impl ConversationLayout {
     pub fn remove(&mut self, room: Uuid) {
         self.order.retain(|id| *id != room);
         self.pinned.retain(|id| *id != room);
+        self.preferences.remove(&room);
     }
 }
 
@@ -366,6 +404,7 @@ mod tests {
         let mut layout = ConversationLayout {
             order: vec![a, b],
             pinned: vec![b],
+            ..Default::default()
         };
         layout.validate().unwrap();
         layout.remove(b);
@@ -391,5 +430,40 @@ mod tests {
             settings.accent_color = value.into();
             assert!(settings.validate().is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod organization_tests {
+    use super::*;
+    #[test]
+    fn organization_is_optional_bounded_and_removed_with_conversation() {
+        let mut layout: ConversationLayout =
+            serde_json::from_str(r#"{"order":[],"pinned":[]}"#).unwrap();
+        assert!(layout.preferences.is_empty());
+        let room = Uuid::new_v4();
+        layout.order.push(room);
+        layout.preferences.insert(
+            room,
+            ConversationPreference {
+                nickname: "My team".into(),
+                folder: "Work".into(),
+                color: Some("#AABBCC".into()),
+            },
+        );
+        layout.validate().unwrap();
+        let roundtrip: ConversationLayout =
+            serde_json::from_slice(&serde_json::to_vec(&layout).unwrap()).unwrap();
+        assert_eq!(roundtrip, layout);
+        for bad in ["#fff", "red", "#ZZZZZZ", "url(test)"] {
+            layout.preferences.get_mut(&room).unwrap().color = Some(bad.into());
+            assert!(layout.validate().is_err());
+        }
+        layout.preferences.get_mut(&room).unwrap().color = None;
+        layout.preferences.get_mut(&room).unwrap().nickname = "bad\nname".into();
+        assert!(layout.validate().is_err());
+        layout.remove(room);
+        assert!(layout.preferences.is_empty());
+        layout.validate().unwrap();
     }
 }
