@@ -647,7 +647,7 @@ test('preview metadata stays literal, duplicate URLs share a request, and late p
   resolvePreview({title:'<img src=x onerror=x>',description:'<script>bad</script>',image:'https://tracker.example/image.png'});await flush();
   assert.equal(cards[0].querySelector('.link-title').textContent,'<img src=x onerror=x>');assert.equal(cards[0].querySelector('img'),null);assert.equal(cards[0].querySelector('script'),null);
   await a.app.handleEvent({type:'message',room:'room',id:'late',peer:'peer',name:'Peer',text:'https://example.org',emojis:[],timestamp:1});
-  const late=a.get('timeline').querySelectorAll('.link-preview')[2];late.querySelector('button').click();await flush();await a.app.lockAccount();
+  const late=a.get('timeline').querySelector('[data-message-id=late] .link-preview');late.querySelector('button').click();await flush();await a.app.lockAccount();
   resolvePreview({title:'PRIVATE PREVIEW',description:'Private',image:null});await flush();assert.equal(a.window.document.body.textContent.includes('PRIVATE PREVIEW'),false);
 });
 
@@ -774,8 +774,8 @@ test('Studio groups messages by identity and time while retaining author context
 
 test('files and notices interrupt an editorial message group',async t=>{
   const a=await setup(t);a.session(connected);const event={type:'message',room:'room',peer:'peer',name:'Peer',text:'Text',emojis:[],timestamp:Date.now()};
-  await a.app.handleEvent({...event,id:'first'});await a.app.handleEvent({type:'member_joined',room:'room',id:'joined',peer:'new',name:'New person',timestamp:event.timestamp});await a.app.handleEvent({...event,id:'after-notice',timestamp:event.timestamp+1000});
-  await a.app.handleEvent({type:'file_offered',room:'room',peer:'peer',name:'Peer',outgoing:false,offer:{id:'file',name:'notes.txt',size:10,hash:'a'.repeat(64)}});await a.app.handleEvent({...event,id:'after-file',timestamp:Date.now()});
+  await a.app.handleEvent({...event,id:'first'});await a.app.handleEvent({type:'member_joined',room:'room',id:'joined',peer:'new',name:'New person',timestamp:event.timestamp+100});await a.app.handleEvent({...event,id:'after-notice',timestamp:event.timestamp+1000});
+  await a.app.handleEvent({type:'file_offered',room:'room',peer:'peer',name:'Peer',timestamp:event.timestamp+2000,outgoing:false,offer:{id:'file',name:'notes.txt',size:10,hash:'a'.repeat(64)}});await a.app.handleEvent({...event,id:'after-file',timestamp:event.timestamp+3000});
   const rows=[...a.get('timeline').querySelectorAll('.message.studio-text')];assert.ok(rows.every(row=>!row.classList.contains('continuation')));
 });
 
@@ -1440,4 +1440,21 @@ test('private call cards retain identities and update measured routes without re
  a.session({...call,voice:false,call:null});
  assert.equal(a.get('voice-bar').hidden,true);
  assert.equal(roster.children.length,0);
+});
+
+test('reconnect catch-up inserts messages by sent time across peers without replacing existing rows',async t=>{
+ const a=await setup(t);a.session(channelRoom);
+ const send=event=>a.app.handleEvent({type:'message',room:'room',channel:'general',name:'Peer',text:'Catch-up',emojis:[],...event});
+ const early=Date.parse('2026-10-28T17:40:00Z'),late=early+300000;
+ await send({id:'later',peer:'peer-b',timestamp:late});
+ const row=a.get('timeline').querySelector('[data-message-id="later"]');
+ await send({id:'earlier',peer:'peer-a',timestamp:early});
+ assert.deepEqual([...a.get('timeline').querySelectorAll('[data-message-id]')].map(n=>n.dataset.messageId),['earlier','later']);
+ assert.equal(a.get('timeline').querySelector('[data-message-id="later"]'),row);
+ await send({id:'earlier',peer:'peer-a',timestamp:early});
+ assert.equal(a.get('timeline').querySelectorAll('[data-message-id]').length,2);
+ await send({id:'yesterday',peer:'peer-a',timestamp:early-86400000});
+ assert.equal(a.get('timeline').querySelectorAll('.day-divider').length,2);
+ await send({id:'same-time',peer:'peer-a',timestamp:late});
+ assert.deepEqual([...a.get('timeline').querySelectorAll('[data-message-id]')].map(n=>n.dataset.messageId),['yesterday','earlier','same-time','later']);
 });

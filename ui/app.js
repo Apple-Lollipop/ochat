@@ -737,9 +737,45 @@ async function loadRoom(id, target = null) {
   historyLoading=false;if(target && displayed.some(e=>e.event.type==='message'&&e.event.id===target.id))focusMessage(target);reportView();if(!target)scheduleRead();
   refreshMessageTools(id).catch(toast);window.OchatPresentation?.conversationChanged(id);
 }
+// Arrival order differs between peers during reconnect catch-up. Keep existing
+// message nodes (images, focus and transfer controls) while inserting by sent time.
+function compareTimelineEntries(a,b) {
+  const time=Number(a.dataset.timestamp)-Number(b.dataset.timestamp);
+  if(time)return time;
+  const key=node=>`${node.dataset.peer || ''}:${node.dataset.messageId || node.dataset.fileId || node.dataset.noticeId || ''}`;
+  return key(a)<key(b)?-1:key(a)>key(b)?1:0;
+}
+function repairTimelineGroups(timeline) {
+  timeline.querySelectorAll(':scope > .day-divider').forEach(node=>node.remove());
+  const unread=timeline.querySelector(':scope > .unread-divider');
+  if(unread){const first=timeline.querySelector('.message.unread');if(first)timeline.insertBefore(unread,first);else unread.remove();}
+  let lastDate=null,previous=null;
+  for(const row of [...timeline.children]){
+    if(row.classList.contains('message')){
+      const date=new Date(Number(row.dataset.timestamp)),day=date.toDateString();
+      if(day!==lastDate){const divider=el('div','day-divider',date.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'}));divider.setAttribute('role','separator');timeline.insertBefore(divider,row.previousElementSibling===unread?unread:row);lastDate=day;}
+      const gap=Number(row.dataset.timestamp)-Number(previous?.dataset.timestamp);
+      row.classList.toggle('continuation',row.classList.contains('studio-text')&&previous?.classList.contains('studio-text')&&previous.dataset.peer===row.dataset.peer&&previous.dataset.room===row.dataset.room&&row.dataset.hasReply!=='true'&&!row.querySelector('.message-pin:not([hidden])')&&gap>=0&&gap<=120000&&new Date(Number(previous.dataset.timestamp)).toDateString()===day);
+    }
+    previous=row;
+  }
+}
 function appendEntry(entry) {
   const timeline=$('timeline'),bottom=timeline.scrollHeight-timeline.scrollTop-timeline.clientHeight<120;
   const previous=timeline.lastElementChild;
+  if(entry.dataset.timestamp){
+    const before=[...timeline.children].find(node=>node.dataset.timestamp&&compareTimelineEntries(entry,node)<0);
+    if(before){
+      const anchor=[...timeline.children].find(node=>node.getBoundingClientRect().bottom>timeline.getBoundingClientRect().top),top=anchor?.getBoundingClientRect().top;
+      timeline.insertBefore(entry,before);repairTimelineGroups(timeline);
+      while(timeline.children.length>500)timeline.firstElementChild.remove();
+      timeline.querySelector('.message')?.classList.remove('continuation');
+      window.OchatTimeline?.appended(entry,bottom);
+      if(bottom)timeline.scrollTop=timeline.scrollHeight;
+      else if(anchor?.isConnected)timeline.scrollTop+=anchor.getBoundingClientRect().top-top;
+      return;
+    }
+  }
   if(entry.classList.contains('message')){
     const date=new Date(Number(entry.dataset.timestamp)),last=[...timeline.children].reverse().find(node=>node.classList.contains('message'));
     if(!last || new Date(Number(last.dataset.timestamp)).toDateString()!==date.toDateString()){
@@ -842,6 +878,7 @@ function addJoinNotice(event) {
   time.title = date.toLocaleString('en-US');
   row.append(el('span','',`${event.peer === state?.id ? 'You' : event.name} joined the room.`),time);
   row.title = time.title;
+  row.dataset.timestamp=date.getTime();row.dataset.peer=event.peer;row.dataset.noticeId=event.id || key;
   appendEntry(row);
 }
 function addFile(event,live) {

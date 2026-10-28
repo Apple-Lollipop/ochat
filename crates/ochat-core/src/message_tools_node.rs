@@ -5,6 +5,37 @@ use crate::message_tools::{Change, Delivery, Update, Verification};
 mod sync_validation_tests {
     use super::*;
 
+    #[test]
+    fn archived_message_order_uses_send_time_not_receipt_time() {
+        let room = Uuid::new_v4();
+        let mut entries = vec![
+            HistoryEntry {
+                room,
+                timestamp: 100,
+                event: serde_json::json!({"type":"message","timestamp":1745,"peer":"b","id":"b"}),
+            },
+            HistoryEntry {
+                room,
+                timestamp: 200,
+                event: serde_json::json!({"type":"message","timestamp":1740,"peer":"a","id":"a"}),
+            },
+        ];
+        for entry in &mut entries {
+            ChatNode::project_with_updates(entry, &[]).unwrap();
+            ChatNode::project_with_updates(entry, &[]).unwrap();
+        }
+        entries.sort_by_key(|entry| entry.timestamp);
+        assert_eq!(entries[0].event["id"], "a");
+        assert_eq!(entries[1].event["id"], "b");
+        let mut legacy = HistoryEntry {
+            room,
+            timestamp: 123,
+            event: serde_json::json!({"type":"message"}),
+        };
+        ChatNode::project_with_updates(&mut legacy, &[]).unwrap();
+        assert_eq!(legacy.timestamp, 123);
+    }
+
     #[tokio::test]
     async fn unknown_history_authors_do_not_bypass_signature_or_room_validation() {
         let node = ChatNode::start("Receiver", false).await.unwrap();
@@ -200,6 +231,13 @@ impl ChatNode {
         }
     }
     fn project_with_updates(entry: &mut HistoryEntry, updates: &[Update]) -> Result<()> {
+        // Older archives used local receipt time. Recover the original send time
+        // before sorting/searching, without rewriting encrypted account records.
+        if entry.event["type"] == "message" {
+            if let Some(timestamp) = entry.event["timestamp"].as_u64() {
+                entry.timestamp = timestamp;
+            }
+        }
         let peer = entry.event["peer"].as_str().unwrap_or("").to_owned();
         let id = entry.event["id"].as_str().unwrap_or("").to_owned();
         for update in updates

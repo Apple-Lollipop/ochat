@@ -1484,10 +1484,16 @@ impl ChatNode {
                             event: serde_json::to_value(&event)?,
                         },
                     )?,
-                    Event::Message { room, id, peer, .. } => {
+                    Event::Message {
+                        room,
+                        id,
+                        peer,
+                        timestamp,
+                        ..
+                    } => {
                         let mut entry = HistoryEntry {
                             room: *room,
-                            timestamp: now(),
+                            timestamp: *timestamp,
                             event: serde_json::to_value(&event)?,
                         };
                         self.project_message(&mut entry)?;
