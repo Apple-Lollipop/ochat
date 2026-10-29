@@ -79,8 +79,11 @@ pub fn clean_name(input: &str) -> Result<String> {
         "Use a name of 1 to 48 characters"
     );
     ensure!(
-        !name.chars().any(char::is_control),
-        "The name contains an unsupported character"
+        !name.chars().any(|ch| {
+            ch.is_control()
+                || matches!(ch, '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+        }),
+        "The name contains an unsupported control or direction character"
     );
     Ok(name.to_owned())
 }
@@ -337,6 +340,23 @@ pub async fn read_frame<T: DeserializeOwned>(recv: &mut RecvStream) -> Result<T>
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn display_names_reject_direction_override_identity_spoofing() {
+        // Direction formatting can visually reorder an authenticated peer name or
+        // imitate adjacent identity information. Ordinary RTL letters and emoji
+        // sequences remain supported; only invisible direction controls fail.
+        for ch in [
+            '\u{061c}', '\u{200e}', '\u{200f}', '\u{202a}', '\u{202b}', '\u{202c}', '\u{202d}',
+            '\u{202e}', '\u{2066}', '\u{2067}', '\u{2068}', '\u{2069}',
+        ] {
+            assert!(clean_name(&format!("Alice{ch}Bob")).is_err());
+        }
+        assert!(clean_name("مرحبا").is_ok());
+        assert!(clean_name("שלום").is_ok());
+        assert!(clean_name("Alice 👩‍💻").is_ok());
+        assert!(clean_name("Émilie").is_ok());
+    }
+
     #[test]
     fn rejects_untrusted_input() {
         assert!(Invitation::decode("https://example.com").is_err());

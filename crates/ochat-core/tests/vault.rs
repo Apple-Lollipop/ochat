@@ -26,6 +26,7 @@ fn local_removal_and_preferences_survive_backup_without_retaining_history() {
                     (
                         room,
                         ochat_core::settings::ConversationPreference {
+                            archived: false,
                             nickname: "Removed alias".into(),
                             folder: "Personal".into(),
                             color: Some("#112233".into()),
@@ -34,6 +35,7 @@ fn local_removal_and_preferences_survive_backup_without_retaining_history() {
                     (
                         kept,
                         ochat_core::settings::ConversationPreference {
+                            archived: false,
                             nickname: "My local team".into(),
                             folder: "Work".into(),
                             color: Some("#AABBCC".into()),

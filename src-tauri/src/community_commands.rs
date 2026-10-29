@@ -95,9 +95,14 @@ pub async fn resume_transfer(
 ) -> Reply<bool> {
     let client = node(&state).await?.room_node(room).map_err(error)?;
     if let Some(checkpoint) = client.transfer_checkpoint(&peer, id).map_err(error)? {
+        let saved = vault(&state).await?;
+        let destination = checkpoint.destination.clone();
         client
             .receive_file(&peer, id, checkpoint.destination)
             .await
+            .map_err(error)?;
+        saved
+            .put(&format!("desktop_download/{room}/{id}"), &destination)
             .map_err(error)?;
         Ok(true)
     } else {

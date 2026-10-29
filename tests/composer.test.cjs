@@ -340,8 +340,8 @@ test('search pages navigate to older messages and can return to the latest histo
   a.get('search-button').click();a.get('search-query').value='Found';a.get('search-scope').value='all';a.get('search-form').dispatchEvent(new a.window.Event('submit',{cancelable:true}));await flush();
   assert.equal(queries[0].room,null);assert.equal(a.get('search-next').hidden,false);assert.equal(a.get('search-results').querySelector('b'),null);
   a.get('search-next').click();await flush();assert.equal(queries.at(-1).offset,50);
-  a.get('search-results').querySelector('button').click();await flush();assert.equal(a.window.document.activeElement.dataset.messageId,'m10');assert.equal(a.get('history-context').hidden,false);
-  a.get('latest-messages').click();await flush();assert.equal(a.get('history-context').hidden,true);assert.equal(a.get('timeline').querySelector('[data-message-id="m10"]'),null);assert.ok(a.get('timeline').querySelector('[data-message-id="m599"]'));
+  a.get('search-results').querySelector('button').click();for(let frame=0;frame<100&&a.window.document.activeElement.dataset.messageId!=='m10';frame++)await new Promise(resolve=>a.window.requestAnimationFrame(resolve));assert.equal(a.window.document.activeElement.dataset.messageId,'m10');assert.equal(a.get('history-context').hidden,false);
+  a.get('latest-messages').click();for(let frame=0;frame<100&&!a.get('timeline').querySelector('[data-message-id="m599"]');frame++)await new Promise(resolve=>a.window.requestAnimationFrame(resolve));assert.equal(a.get('history-context').hidden,true);assert.equal(a.get('timeline').querySelector('[data-message-id="m10"]'),null);assert.ok(a.get('timeline').querySelector('[data-message-id="m599"]'));
 });
 
 test('room notification preferences preserve other rooms and support mute and private previews',async t=>{
@@ -1133,7 +1133,7 @@ test('Risibank preview loading settles on decoded images and on failed downloads
 test('chat appearance changes preview independently and Cancel restores saved values',async t=>{
  const a=await setup(t);a.session(connected);a.get('settings-button').click();await flush();
  for(const [id,value]of [['message-font-size',20],['message-spacing',16],['corner-radius',22],['chat-image-size',160]]){a.get(id).value=value;a.get(id).dispatchEvent(new a.window.Event('input'));}
- const root=a.window.document.documentElement;assert.equal(root.style.getPropertyValue('--chat-font-size'),'20px');assert.equal(root.style.getPropertyValue('--chat-image-size'),'160px');assert.equal(a.get('message-font-size-value').textContent,'20 px');
+ await new Promise(resolve=>a.window.requestAnimationFrame(resolve));const root=a.window.document.documentElement;assert.equal(root.style.getPropertyValue('--chat-font-size'),'20px');assert.equal(root.style.getPropertyValue('--chat-image-size'),'160px');assert.equal(a.get('message-font-size-value').textContent,'20 px');
  a.get('settings-cancel').click();assert.equal(root.style.getPropertyValue('--chat-font-size'),'15px');assert.equal(root.style.getPropertyValue('--chat-image-size'),'240px');
 });
 
@@ -1214,7 +1214,7 @@ test('profile cards show bios, open a large photo and clear private labels on Lo
  const a=await setup(t),data='data:image/png;base64,AAAA';const previous=a.window.__TAURI__.core.invoke;a.window.__TAURI__.core.invoke=async(command,args)=>command==='emoji_asset'?data:previous(command,args);a.session({...connected,peers:[{...connected.peers[0],name:'PrivateProfile',bio:'PRIVATE BIO',avatar_hash:'a'.repeat(64)}]});a.get('conversation-identity').click();await flush();assert.equal(a.get('details-dialog').classList.contains('profile-overlay'),true);assert.equal(a.get('peer-bio').textContent,'PRIVATE BIO');a.get('peer-avatar').click();assert.equal(a.get('profile-photo-dialog').open,true);assert.equal(a.get('photo-viewer-image').getAttribute('src'),data);await a.app.lockAccount();assert.equal(a.window.document.body.innerHTML.includes('PRIVATE BIO'),false);assert.equal(a.window.document.body.innerHTML.includes('PrivateProfile'),false);assert.equal(a.get('photo-viewer-image').getAttribute('src'),null);
 });
 test('custom appearance previews cancel and Tor changes relock the account',async t=>{
- const a=await setup(t);a.session(connected);a.get('settings-button').click();await flush();a.get('appearance-background-color-enabled').checked=true;a.get('appearance-background-color').value='#ffffff';a.get('appearance-background-color').dispatchEvent(new a.window.Event('input'));assert.equal(a.window.document.documentElement.style.getPropertyValue('--custom-bg'),'#FFFFFF');a.get('settings-cancel').click();assert.equal(a.window.document.documentElement.style.getPropertyValue('--custom-bg'),'');
+ const a=await setup(t);a.session(connected);a.get('settings-button').click();await flush();a.get('appearance-background-color-enabled').checked=true;a.get('appearance-background-color').value='#ffffff';a.get('appearance-background-color').dispatchEvent(new a.window.Event('input'));await new Promise(resolve=>a.window.requestAnimationFrame(resolve));assert.equal(a.window.document.documentElement.style.getPropertyValue('--custom-bg'),'#FFFFFF');a.get('settings-cancel').click();assert.equal(a.window.document.documentElement.style.getPropertyValue('--custom-bg'),'');
  const previous=a.window.__TAURI__.core.invoke;a.window.__TAURI__.core.invoke=async(command,args)=>command==='save_settings'?true:previous(command,args);a.get('settings-button').click();await flush();a.get('tor-enabled').checked=true;a.get('settings-save').click();await flush();assert.equal(a.get('auth-dialog').open,true);assert.equal(a.get('message').disabled,true);
 });
 
@@ -1457,4 +1457,81 @@ test('reconnect catch-up inserts messages by sent time across peers without repl
  assert.equal(a.get('timeline').querySelectorAll('.day-divider').length,2);
  await send({id:'same-time',peer:'peer-a',timestamp:late});
  assert.deepEqual([...a.get('timeline').querySelectorAll('[data-message-id]')].map(n=>n.dataset.messageId),['yesterday','earlier','same-time','later']);
+});
+
+test('image reply sends only a reference and clears it only after successful image delivery',async t=>{
+ const a=await setup(t);a.session(connected);const hash='b'.repeat(64);await a.app.handleEvent({type:'message',room:'room',id:'original-image',peer:'peer',name:'Peer',text:'ochat-image:'+hash,emojis:[],timestamp:1});
+ a.get('timeline').querySelector('.reply-action').click();a.input('Keep this draft');const previous=a.window.__TAURI__.core.invoke;
+ a.window.__TAURI__.core.invoke=async(c,args)=>{if(c==='send_file'){await previous(c,args);return true;}return previous(c,args);};
+ a.get('attach-button').click();await flush();const sent=a.calls.find(([c])=>c==='send_file');assert.equal(JSON.stringify(sent[1].replyTo),JSON.stringify({id:'original-image',peer:'peer'}));assert.equal(a.get('reply-draft').hidden,true);assert.equal(a.get('message').value,'Keep this draft');
+});
+
+test('compact GIF picker labels media formats, closes outside and preserves image reply context',async t=>{
+ const a=await setup(t);a.session(connected);await a.app.handleEvent({type:'message',room:'room',id:'reply-target',peer:'peer',name:'Peer',text:'ochat-image:'+'a'.repeat(64),emojis:[],timestamp:1});a.get('timeline').querySelector('.reply-action').click();
+ const previous=a.window.__TAURI__.core.invoke;a.window.__TAURI__.core.invoke=async(c,args)=>c==='risibank_browse'?{medias:[{id:1,slug:'animated',cache_url:'https://risibank.fr/cache/medias/1/full.gif'},{id:2,slug:'photo',cache_url:'https://risibank.fr/cache/medias/2/full.png'}],has_more:false}:c==='risibank_image'?'data:image/png;base64,AAAA':previous(c,args);
+ a.get('gif-button').click();await flush();assert.equal(a.get('risibank-dialog').open,true);assert.equal(a.get('gif-button').getAttribute('aria-expanded'),'true');assert.deepEqual([...a.get('risibank-grid').querySelectorAll('.meme-kind')].map(n=>n.textContent),['GIF','Photo']);
+ a.get('risibank-grid').querySelector('.risibank-item').click();await flush();assert.equal(JSON.stringify(a.calls.find(([c])=>c==='send_risibank_image')[1].replyTo),JSON.stringify({id:'reply-target',peer:'peer'}));assert.equal(a.get('reply-draft').hidden,true);
+ a.get('gif-button').click();await flush();a.get('message').dispatchEvent(new a.window.PointerEvent('pointerdown',{bubbles:true}));assert.equal(a.get('risibank-dialog').open,false);
+});
+
+test('taskbar badge totals unread conversations, ignores duplicates and clears on Lock',async t=>{
+ const a=await setup(t);a.session(connected);a.window.document.hasFocus=()=>false;await flush();
+ const send=event=>a.app.handleEvent({type:'message',room:'room',peer:'peer',name:'Peer',text:'Unread',emojis:[],timestamp:Date.now(),...event});
+ await send({id:'badge-one'});await flush();
+ assert.equal(a.calls.filter(([c])=>c==='set_taskbar_unread').at(-1)[1].count,1);
+ await send({id:'badge-one'});await flush();
+ assert.equal(a.calls.filter(([c])=>c==='set_taskbar_unread').at(-1)[1].count,1);
+ await send({id:'badge-self',peer:'self'});await flush();
+ assert.equal(a.calls.filter(([c])=>c==='set_taskbar_unread').at(-1)[1].count,1);
+ await send({id:'badge-two'});await flush();
+ assert.equal(a.calls.filter(([c])=>c==='set_taskbar_unread').at(-1)[1].count,2);
+ await a.app.lockAccount();await flush();
+ assert.equal(a.calls.filter(([c])=>c==='set_taskbar_unread').at(-1)[1].count,0);
+});
+
+test('link previews require explicit consent for legacy profiles and manual loading discloses its action',async t=>{
+ const a=await setup(t);a.app.session(connected,{...structuredClone(settings),link_previews:true});
+ await a.app.handleEvent({type:'message',room:'room',id:'private-tracking-link',peer:'peer',name:'Peer',text:'https://example.com/tracker',emojis:[],timestamp:1});await flush();
+ const card=a.get('timeline').querySelector('.link-preview');await card._load();await flush();
+ assert.equal(a.calls.some(([c])=>c==='link_preview'),false);
+ assert.match(card.textContent,/may see your IP/);
+ a.get('settings-button').click();await flush();assert.equal(a.get('link-previews').checked,false);a.get('settings-cancel').click();
+ card.querySelector('button').click();await flush();
+ const request=a.calls.find(([c])=>c==='link_preview');assert.equal(request[1].userActivated,true);
+});
+
+test('automatic previews resume only after new explicit opt-in and remain off when a setting is missing',async t=>{
+ const a=await setup(t);a.session(connected);
+ await a.app.handleEvent({type:'message',room:'room',id:'default-no-preview',peer:'peer',name:'Peer',text:'https://example.com/default',emojis:[],timestamp:1});
+ const first=a.get('timeline').querySelector('.link-preview');await first._load();await flush();assert.equal(a.calls.some(([c])=>c==='link_preview'),false);
+ a.app.session(connected,{...structuredClone(settings),link_previews:true,link_preview_consent:true});
+ await a.app.handleEvent({type:'message',room:'room',id:'opted-in-preview',peer:'peer',name:'Peer',text:'https://example.com/opted-in',emojis:[],timestamp:2});
+ const card=a.get('timeline').querySelectorAll('.link-preview')[1];await card._load();await flush();
+ const request=a.calls.find(([c])=>c==='link_preview');assert.equal(request[1].userActivated,false);
+});
+
+test('batched history retains all rows and merges messages received while rendering',async t=>{
+ const a=await setup(t);a.session(connected);const old=a.window.__TAURI__.core.invoke;
+ const entries=Array.from({length:96},(_,i)=>({timestamp:1000+i,event:{type:'message',room:'room',id:'batch-'+i,peer:'peer',name:'Peer',text:'Saved '+i,timestamp:1000+i,emojis:[]}}));
+ a.window.__TAURI__.core.invoke=async(c,args)=>c==='history'?entries:old(c,args);
+ let finished=false;const loading=a.app.loadRoom('room').then(()=>{finished=true;});await flush();assert.equal(finished,false);
+ await a.app.handleEvent({type:'message',room:'room',id:'during-batch',peer:'peer',name:'Peer',text:'Arrived during render',timestamp:9999,emojis:[]});await loading;
+ assert.equal(a.get('timeline').querySelectorAll('[data-message-id]').length,97);assert.equal(a.get('timeline').lastElementChild.dataset.messageId,'during-batch');assert.equal(a.get('timeline').querySelectorAll('.unread-divider').length,1);
+ const cancelled=a.app.loadRoom('room');await flush();await a.app.lockAccount();await cancelled;assert.equal(a.get('timeline').querySelectorAll('[data-message-id]').length,0);
+});
+
+test('inline image loader bounds concurrent work and discards detached queued images',async t=>{
+ const a=await setup(t);a.session(connected);const old=a.window.__TAURI__.core.invoke;let active=0,maximum=0,requests=0;const finish=[];
+ a.window.__TAURI__.core.invoke=(c,args)=>c==='message_image'?new Promise(resolve=>{requests++;active++;maximum=Math.max(maximum,active);finish.push(()=>{active--;resolve('data:image/png;base64,AAAA');});}):old(c,args);
+ for(let i=0;i<12;i++)await a.app.handleEvent({type:'message',room:'room',id:'queued-image-'+i,peer:'peer',name:'Peer',text:'ochat-image:'+i.toString(16).padStart(64,'0'),timestamp:1000+i,emojis:[]});
+ const loads=[...a.get('timeline').querySelectorAll('.inline-image')].map(frame=>frame._load());await flush();assert.equal(maximum,3);assert.equal(requests,3);await a.app.lockAccount();finish.splice(0).forEach(fn=>fn());await Promise.all(loads);await flush();assert.equal(requests,3);assert.equal(a.get('timeline').querySelector('img'),null);
+});
+
+test('returning to a conversation does not reuse a cancelled image request from its previous view',async t=>{
+ const a=await setup(t);a.session(connected);const original=a.window.__TAURI__.core.invoke,hash='f'.repeat(64);let epoch=0;const requests=[];
+ const event={type:'message',room:'room',id:'view-image',peer:'peer',name:'Peer',text:'ochat-image:'+hash,timestamp:1,emojis:[]};
+ a.window.__TAURI__.core.invoke=(command,args)=>command==='begin_message_images'?Promise.resolve(++epoch):command==='history'?Promise.resolve([{room:'room',timestamp:1,event}]):command==='message_image'?new Promise((resolve,reject)=>requests.push({args,resolve,reject})):original(command,args);
+ await a.app.loadRoom('room');const first=a.get('timeline').querySelector('.inline-image')._load();await flush();assert.equal(requests.length,1);
+ await a.app.loadRoom('room');const second=a.get('timeline').querySelector('.inline-image')._load();await flush();assert.equal(requests.length,2);assert.equal(requests[0].args.requestToken,1);assert.equal(requests[1].args.requestToken,2);
+ requests[0].reject(Error('Image request cancelled'));requests[1].resolve('data:image/png;base64,AAAA');await Promise.all([first,second]);assert.ok(a.get('timeline').querySelector('.message-image-full'));
 });

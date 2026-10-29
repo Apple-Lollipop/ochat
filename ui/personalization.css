@@ -130,3 +130,24 @@ body.discord-shell>main,.discord-shell .workspace{background:transparent}
 .message-image-media:not(.ready)>img{position:absolute;max-width:100%;inset:0}
 .message-image-media.failed{aspect-ratio:auto;max-height:none}
 .message-image-media.failed .message-image-placeholder{min-height:100px}
+/* Media-first composer picker: fixed controls, independently scrolling results. */
+#risibank-dialog{position:fixed;inset:auto;margin:0;width:min(430px,calc(100vw - 24px));height:min(540px,calc(100vh - 90px));max-height:calc(100vh - 24px);padding:14px;box-sizing:border-box;border-radius:18px;box-shadow:0 14px 48px #0005;background:var(--custom-panel,var(--panel));color:var(--custom-panel-text,var(--text));border:1px solid var(--line);backdrop-filter:none;opacity:1}
+#risibank-dialog[open]{display:grid;grid-template-rows:auto auto auto auto minmax(0,1fr) auto;gap:8px;overflow:hidden}
+#risibank-dialog :is(.panel-heading,.meme-tabs,.dialog-actions){margin:0;min-height:0}
+#risibank-dialog .panel-heading h2{font-size:17px;margin:0}
+#risibank-dialog > label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;clip-path:inset(50%);overflow:hidden;white-space:nowrap}
+#risibank-dialog :is(input,p){margin:0}
+#risibank-dialog > input{min-height:36px;height:36px;padding:7px 10px}
+#risibank-dialog .meme-tabs button{min-height:30px;padding:4px 10px}
+#risibank-dialog #risibank-results-status{font-size:11px;line-height:16px}
+#risibank-dialog .risibank-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;min-height:0;max-height:none;height:100%;overflow:auto;align-content:start;padding:2px;overscroll-behavior:contain}
+#risibank-dialog .meme-tile{position:relative;min-width:0;border-radius:10px;background:var(--field)}
+#risibank-dialog .risibank-item{width:100%;padding:5px;gap:4px;box-sizing:border-box}
+#risibank-dialog .risibank-item img{width:100%;height:108px;object-fit:contain}
+#risibank-dialog .meme-caption{font-size:10px;line-height:14px}
+#risibank-dialog .meme-kind{position:absolute;top:5px;left:5px;z-index:1;padding:2px 5px;border-radius:5px;background:#15171de8;color:white;font-size:9px;font-weight:700;pointer-events:none}
+#risibank-dialog .dialog-actions{display:flex;justify-content:flex-end;gap:6px}
+#risibank-dialog .dialog-actions button{min-height:28px;padding:3px 10px;font-size:11px}
+#risibank-dialog .panel-heading{padding:0;min-height:28px;gap:8px}
+#risibank-dialog .panel-heading .icon-button{width:28px;height:28px;min-height:28px;padding:0}
+#risibank-dialog .meme-tabs{padding:0;gap:6px;min-height:30px}

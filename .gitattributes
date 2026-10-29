@@ -1,0 +1,2 @@
+# Preserve the verified upstream bytes used by the local security backport.
+vendor/glib-0.18.5/** -text

@@ -50,6 +50,14 @@ Encrypted peer-to-peer conversations, voice calls and shared spaces for desktop.
 - Responsive navigation, compact message menus and a persistent voice dock.
 - Independent message, file, ringtone and voice-channel sounds, with volume controls.
 - Optional notification previews and per-conversation notification preferences.
+- Workspace preferences: resizable navigation/member panels, a focus mode, density presets, and an always-visible, collapsed or selection-based formatting toolbar.
+- Ctrl+K searches contacts, rooms, channels and commands; recent conversations are prioritized during the current unlocked session. Threads, pins and search can use a nonmodal side panel.
+- Friends offer cards or a compact list, online/favorites filters and local favorites. Conversations can be archived and restored without deleting their history or credentials.
+- Quick microphone/output menus provide device selection, levels and an explicit local test. Optional route/RTT details appear in the voice dock.
+- The transfer center combines live per-recipient progress, speed estimates, resume/cancel actions and local transfer history. Completed downloads can be revealed in their folder. Download paths and transfer-center metadata are excluded from portable backups.
+- Searchable settings, section resets, unsaved-change indication, date/clock formats and a configurable first weekday in the local history calendar. The interface remains English.
+- Temporary room/channel notification pauses, a global pause, and quiet hours evaluated in the operating system's local timezone, including overnight schedules.
+- Closing can quit, ask, or keep Ochat running in the notification area. The tray menu reopens or quits Ochat; hiding is refused if a tray icon could not be created.
 
 ## Privacy and account control
 
@@ -58,6 +66,7 @@ Encrypted peer-to-peer conversations, voice calls and shared spaces for desktop.
 - A password-protected local account, encrypted history and settings, and an explicit Lock action.
 - Encrypted backups and a private recovery key for manual migration to another device.
 - Explicit contact blocking, invitation controls and identity verification tools.
+- Link previews load on request by default. Automatic previews require explicit opt-in; websites can see your outgoing IP unless routed through Tor.
 
 *Screenshots show the application with demonstration profiles and conversations.*
 

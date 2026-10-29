@@ -28,9 +28,9 @@
   $('organization-reset').onclick=()=>{$('organization-nickname').value='';$('organization-folder').value='';$('organization-use-color').checked=false;};
   dialog.querySelector('form').onsubmit = async e => {
     e.preventDefault();if(!target || !unlocked || generation!==sessionGeneration)return;
-    const room=target, epoch=generation, value={nickname:$('organization-nickname').value.trim(),folder:$('organization-folder').value.trim(),color:$('organization-use-color').checked?$('organization-color').value.toUpperCase():null};
+    const room=target, epoch=generation, value={...preference(target),nickname:$('organization-nickname').value.trim(),folder:$('organization-folder').value.trim(),color:$('organization-use-color').checked?$('organization-color').value.toUpperCase():null};
     if([value.nickname,value.folder].some(v=>[...v].length>80 || /[\x00-\x1f\x7f]/.test(v))) {$('organization-error').textContent='Use up to 80 characters without control characters.';return;}
-    const preferences={...(conversationLayout.preferences || {})}; if(value.nickname || value.folder || value.color)preferences[room]=value;else delete preferences[room];
+    const preferences={...(conversationLayout.preferences || {})}; if(value.nickname || value.folder || value.color || value.archived)preferences[room]=value;else delete preferences[room];
     $('organization-save').disabled=true;
     try { await saveLayout({...conversationLayout,preferences}); if(!unlocked || epoch!==sessionGeneration)return; const saved=preference(room);if(JSON.stringify(saved)!==JSON.stringify(preferences[room] || {})){$('organization-error').textContent='Could not save these changes. Please try again.';return;}render();close(); }
     finally {$('organization-save').disabled=false;}

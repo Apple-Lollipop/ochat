@@ -3,6 +3,130 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+/// Local workspace preferences; stored with the encrypted account and backups.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WorkspaceOptions {
+    pub sidebar_width: u16,
+    pub details_width: u16,
+    pub focus_mode: bool,
+    pub friends_view: String,
+    pub favorite_friends: Vec<String>,
+    pub density: String,
+    pub formatting_toolbar: String,
+    pub technical_status: bool,
+    pub date_format: String,
+    pub hour_cycle: String,
+    pub first_weekday: String,
+    pub close_behavior: String,
+    pub quiet_enabled: bool,
+    pub quiet_start: u16,
+    pub quiet_end: u16,
+    pub quiet_days: Vec<u8>,
+    pub snoozed_until: u64,
+}
+impl Default for WorkspaceOptions {
+    fn default() -> Self {
+        Self {
+            sidebar_width: 240,
+            details_width: 260,
+            focus_mode: false,
+            friends_view: "cards".into(),
+            favorite_friends: vec![],
+            density: "standard".into(),
+            formatting_toolbar: "always".into(),
+            technical_status: false,
+            date_format: "system".into(),
+            hour_cycle: "24".into(),
+            first_weekday: "monday".into(),
+            close_behavior: "quit".into(),
+            quiet_enabled: false,
+            quiet_start: 22 * 60,
+            quiet_end: 8 * 60,
+            quiet_days: (0..7).collect(),
+            snoozed_until: 0,
+        }
+    }
+}
+impl WorkspaceOptions {
+    pub fn validate(&self) -> Result<()> {
+        ensure!(
+            (180..=420).contains(&self.sidebar_width) && (220..=480).contains(&self.details_width),
+            "Invalid panel width"
+        );
+        for (value, allowed) in [
+            (self.friends_view.as_str(), &["cards", "list"][..]),
+            (
+                self.density.as_str(),
+                &["compact", "standard", "comfortable"][..],
+            ),
+            (
+                self.formatting_toolbar.as_str(),
+                &["always", "collapsed", "selection"][..],
+            ),
+            (
+                self.date_format.as_str(),
+                &["system", "iso", "dmy", "mdy"][..],
+            ),
+            (self.hour_cycle.as_str(), &["12", "24"][..]),
+            (self.first_weekday.as_str(), &["monday", "sunday"][..]),
+            (self.close_behavior.as_str(), &["quit", "tray", "ask"][..]),
+        ] {
+            ensure!(allowed.contains(&value), "Invalid workspace preference");
+        }
+        ensure!(
+            self.quiet_start < 1440
+                && self.quiet_end < 1440
+                && self.quiet_days.len() <= 7
+                && self.quiet_days.iter().all(|d| *d < 7),
+            "Invalid quiet hours"
+        );
+        ensure!(
+            self.favorite_friends.len() <= 128,
+            "Too many favorite contacts"
+        );
+        for peer in &self.favorite_friends {
+            let _: iroh::PublicKey = peer.parse()?;
+        }
+        Ok(())
+    }
+    pub fn quiet_at(&self, now_ms: u64, weekday: u8, minute: u16) -> bool {
+        if self.snoozed_until > now_ms {
+            return true;
+        }
+        if !self.quiet_enabled {
+            return false;
+        }
+        let (day, active) = if self.quiet_start < self.quiet_end {
+            (
+                weekday,
+                minute >= self.quiet_start && minute < self.quiet_end,
+            )
+        } else if self.quiet_start > self.quiet_end {
+            (
+                if minute < self.quiet_end {
+                    (weekday + 6) % 7
+                } else {
+                    weekday
+                },
+                minute >= self.quiet_start || minute < self.quiet_end,
+            )
+        } else {
+            (weekday, true)
+        };
+        active && self.quiet_days.contains(&day)
+    }
+    pub fn quiet_now(&self) -> bool {
+        use chrono::{Datelike, Timelike};
+        let now = chrono::Local::now();
+        self.quiet_at(
+            now.timestamp_millis().max(0) as u64,
+            now.weekday().num_days_from_monday() as u8,
+            (now.hour() * 60 + now.minute()) as u16,
+        )
+    }
+}
+
 pub fn valid_color(value: &str) -> bool {
     value.len() == 7
         && value.starts_with('#')
@@ -12,6 +136,7 @@ pub fn valid_color(value: &str) -> bool {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ConversationPreference {
+    pub archived: bool,
     pub nickname: String,
     pub folder: String,
     pub color: Option<String>,
@@ -71,6 +196,7 @@ impl ConversationLayout {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RoomNotifications {
+    pub snoozed_until: Option<u64>,
     pub scope: Option<String>,
     pub sound: Option<bool>,
     pub previews: Option<bool>,
@@ -114,6 +240,7 @@ impl Default for AudioSettings {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
+    pub workspace: WorkspaceOptions,
     pub availability: String,
     pub tor_enabled: bool,
     pub relay_only: bool,
@@ -132,6 +259,8 @@ pub struct Settings {
     pub audio: AudioSettings,
     pub message_sound: bool,
     pub link_previews: bool,
+    /// Explicit opt-in after the privacy-default migration. Legacy true is not consent.
+    pub link_preview_consent: bool,
     pub voice_join_sound: bool,
     pub voice_leave_sound: bool,
     pub ringtone: bool,
@@ -141,6 +270,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            workspace: WorkspaceOptions::default(),
             video: VideoPreferences::default(),
             availability: "available".into(),
             tor_enabled: false,
@@ -158,7 +288,8 @@ impl Default for Settings {
             theme: "system".into(),
             audio: AudioSettings::default(),
             message_sound: true,
-            link_previews: true,
+            link_previews: false,
+            link_preview_consent: false,
             voice_join_sound: true,
             voice_leave_sound: true,
             ringtone: true,
@@ -168,6 +299,9 @@ impl Default for Settings {
     }
 }
 impl Settings {
+    pub fn automatic_link_previews(&self) -> bool {
+        self.link_previews && self.link_preview_consent
+    }
     pub fn for_channel(&self, room: Uuid, channel: Option<Uuid>) -> Self {
         let mut settings = self.clone();
         if let Some(override_) = channel.and_then(|id| self.room_notifications.get(&id)) {
@@ -176,10 +310,17 @@ impl Settings {
             parent.sound = override_.sound.or(parent.sound);
             parent.previews = override_.previews.or(parent.previews);
             parent.ringtone = override_.ringtone.or(parent.ringtone);
+            parent.snoozed_until = Some(
+                parent
+                    .snoozed_until
+                    .unwrap_or(0)
+                    .max(override_.snoozed_until.unwrap_or(0)),
+            );
         }
         settings
     }
     pub fn validate(&self) -> Result<()> {
+        self.workspace.validate()?;
         ensure!(
             ["available", "away", "busy", "invisible"].contains(&self.availability.as_str()),
             "Invalid availability status"
@@ -416,7 +557,22 @@ mod tests {
         layout.pinned.push(b);
         assert!(layout.validate().is_err());
         let settings: Settings = serde_json::from_str("{}").unwrap();
-        assert!(settings.voice_join_sound && settings.voice_leave_sound && settings.link_previews);
+        assert!(settings.voice_join_sound && settings.voice_leave_sound);
+        assert!(!settings.automatic_link_previews());
+    }
+    #[test]
+    fn automatic_previews_require_new_explicit_consent_even_for_old_profiles() {
+        let defaults: Settings = serde_json::from_str("{}").unwrap();
+        assert!(!defaults.link_previews);
+        assert!(!defaults.automatic_link_previews());
+        let legacy: Settings = serde_json::from_str(r#"{"link_previews":true}"#).unwrap();
+        assert!(!legacy.automatic_link_previews());
+        let opted_in: Settings =
+            serde_json::from_str(r#"{"link_previews":true,"link_preview_consent":true}"#).unwrap();
+        assert!(opted_in.automatic_link_previews());
+        let disabled: Settings =
+            serde_json::from_str(r#"{"link_previews":false,"link_preview_consent":true}"#).unwrap();
+        assert!(!disabled.automatic_link_previews());
     }
     #[test]
     fn accent_validation_and_legacy_defaults_are_explicit() {
@@ -446,6 +602,7 @@ mod organization_tests {
         layout.preferences.insert(
             room,
             ConversationPreference {
+                archived: false,
                 nickname: "My team".into(),
                 folder: "Work".into(),
                 color: Some("#AABBCC".into()),
@@ -465,5 +622,51 @@ mod organization_tests {
         layout.remove(room);
         assert!(layout.preferences.is_empty());
         layout.validate().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod workspace_tests {
+    use super::*;
+    #[test]
+    fn quiet_hours_cross_midnight_and_preserve_selected_start_day() {
+        let mut w = WorkspaceOptions::default();
+        w.quiet_enabled = true;
+        w.quiet_days = vec![0];
+        assert!(w.quiet_at(0, 0, 23 * 60));
+        assert!(w.quiet_at(0, 1, 7 * 60));
+        assert!(!w.quiet_at(0, 0, 7 * 60));
+        assert!(!w.quiet_at(0, 1, 8 * 60));
+        w.snoozed_until = 100;
+        assert!(w.quiet_at(99, 5, 12 * 60));
+        assert!(!w.quiet_at(100, 5, 12 * 60));
+    }
+    #[test]
+    fn preferences_migrate_and_channel_pause_cannot_cancel_parent_pause() {
+        let mut settings: Settings = serde_json::from_str("{}").unwrap();
+        assert_eq!(settings.workspace, WorkspaceOptions::default());
+        settings.workspace.sidebar_width = 1;
+        assert!(settings.validate().is_err());
+        settings.workspace = WorkspaceOptions::default();
+        let room = Uuid::new_v4();
+        let channel = Uuid::new_v4();
+        settings.room_notifications.insert(
+            room,
+            RoomNotifications {
+                snoozed_until: Some(200),
+                ..Default::default()
+            },
+        );
+        settings.room_notifications.insert(
+            channel,
+            RoomNotifications {
+                snoozed_until: Some(100),
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            settings.for_channel(room, Some(channel)).room_notifications[&room].snoozed_until,
+            Some(200)
+        );
     }
 }

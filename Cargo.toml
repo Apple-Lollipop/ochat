@@ -15,3 +15,7 @@ strip = true
 
 
 
+
+# GTK3 in Tauri still requires glib 0.18; see vendor/README.md.
+[patch.crates-io]
+glib = { path = "vendor/glib-0.18.5" }

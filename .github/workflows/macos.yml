@@ -48,6 +48,8 @@ jobs:
           rustc --version
           df -h .
       - run: npm ci
+      - name: Verify vendored security patch integrity
+        run: node scripts/security/verify-vendored-glib.cjs
       - name: Check interface
         env:
           NODE_OPTIONS: --max-old-space-size=4096

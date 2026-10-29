@@ -198,3 +198,64 @@ fn image_validation_rejects_invalid_formats_bombs_and_changed_fingerprints() {
     assert!(asset.bytes().is_err());
     assert!(ochat_core::inline_images::clipboard_png(9000, 9000, vec![]).is_err());
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn image_reply_preserves_reference_and_inline_asset_on_remote_peer() {
+    let dir = tempfile::tempdir().unwrap();
+    let (av, _) = account(&dir.path().join("a"), "Alice");
+    let (bv, _) = account(&dir.path().join("b"), "Bob");
+    let alice = ChatNode::start_with_vault(av).await.unwrap();
+    let bob = ChatNode::start_with_vault(bv).await.unwrap();
+    let invite = alice.create_room("Image replies", 0).await.unwrap();
+    bob.join(&invite).await.unwrap();
+    let room = alice.snapshot().room.unwrap().id;
+    let channel = alice.snapshot().text_channel;
+    let bytes = png();
+    alice.send_inline(bytes.clone(), channel).await.unwrap();
+    until(|| {
+        bob.history(room)
+            .unwrap()
+            .iter()
+            .any(|e| e.event["type"] == "message")
+    })
+    .await;
+    let original = bob
+        .history(room)
+        .unwrap()
+        .into_iter()
+        .find(|e| e.event["type"] == "message")
+        .unwrap();
+    let reference = MessageRef {
+        peer: alice.id(),
+        id: original.event["id"].as_str().unwrap().parse().unwrap(),
+    };
+    bob.send_inline_reply(bytes.clone(), channel, Some(reference.clone()))
+        .await
+        .unwrap();
+    until(|| {
+        alice
+            .history(room)
+            .unwrap()
+            .iter()
+            .any(|e| e.event["reply_to"]["id"] == reference.id.to_string())
+    })
+    .await;
+    let reply = alice
+        .history(room)
+        .unwrap()
+        .into_iter()
+        .find(|e| e.event["reply_to"]["id"] == reference.id.to_string())
+        .unwrap();
+    assert_eq!(reply.event["reply_to"]["peer"], alice.id());
+    let asset = ImageAsset::from_bytes(&bytes).unwrap();
+    assert_eq!(reply.event["text"], format!("{PREFIX}{}", asset.hash));
+    assert_eq!(
+        alice
+            .load_inline(room, channel, bob.id(), asset.hash)
+            .await
+            .unwrap(),
+        asset.data
+    );
+    alice.close().await;
+    bob.close().await;
+}

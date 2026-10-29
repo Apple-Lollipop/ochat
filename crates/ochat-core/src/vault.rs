@@ -143,6 +143,37 @@ fn password_valid(password: &str) -> Result<()> {
     );
     Ok(())
 }
+// Read from the same opened file that is measured and cap the stream as well:
+// metadata alone is insufficient if a selected file grows while being read.
+fn read_bounded(path: &Path, maximum: u64) -> Result<Vec<u8>> {
+    use std::io::Read;
+    let file = File::open(path)?;
+    let metadata = file.metadata()?;
+    ensure!(
+        metadata.is_file(),
+        "Choose a regular encrypted account file"
+    );
+    ensure!(
+        metadata.len() <= maximum,
+        "Encrypted account file exceeds its size limit"
+    );
+    let mut bytes = Vec::new();
+    file.take(maximum + 1).read_to_end(&mut bytes)?;
+    ensure!(
+        bytes.len() as u64 <= maximum,
+        "Encrypted account file exceeds its size limit"
+    );
+    Ok(bytes)
+}
+fn read_header(directory: &Path) -> Result<Header> {
+    let header: Header =
+        serde_json::from_slice(&read_bounded(&directory.join("profile.json"), 4095)?)?;
+    ensure!(
+        header.version == 1 && header.wrapped.len() == 48,
+        "Unsupported or damaged account"
+    );
+    Ok(header)
+}
 fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
     use std::io::Write;
     let mut options = OpenOptions::new();
@@ -252,13 +283,7 @@ impl Vault {
     pub fn unlock(directory: &Path, password: &str) -> Result<Self> {
         ensure!(password.len() <= 1024, "Password is too long");
         let lock = lock_profile(directory)?;
-        let path = directory.join("profile.json");
-        ensure!(fs::metadata(&path)?.len() < 4096, "Invalid account header");
-        let header: Header = serde_json::from_slice(&fs::read(path)?)?;
-        ensure!(
-            header.version == 1 && header.wrapped.len() == 48,
-            "Unsupported or damaged account"
-        );
+        let header = read_header(directory)?;
         let key = password_key(password, &header.salt)?;
         let root = decrypt(
             &key,
@@ -281,8 +306,8 @@ impl Vault {
         format!("ochat-recovery1:{encoded}.{}", &checksum[..8])
     }
     pub fn reveal_key(&self, password: &str) -> Result<String> {
-        let header: Header =
-            serde_json::from_slice(&fs::read(self.directory.join("profile.json"))?)?;
+        ensure!(password.len() <= 1024, "Password is too long");
+        let header = read_header(&self.directory)?;
         let key = password_key(password, &header.salt)?;
         let restored = decrypt(
             &key,
@@ -657,6 +682,8 @@ impl Vault {
             None
         };
         let prefixes = [
+            format!("desktop_transfer/{room}/"),
+            format!("desktop_download/{room}/"),
             format!("transfer/{room}/"),
             format!("send_file/{room}/"),
             format!("issued_invite/{room}/"),
@@ -780,10 +807,7 @@ impl Vault {
         replace: bool,
     ) -> Result<()> {
         password_valid(password)?;
-        ensure!(
-            fs::metadata(path)?.len() <= MAX_BACKUP,
-            "Backup exceeds the 256 MiB limit"
-        );
+
         ensure!(recovery.len() <= 256, "Invalid recovery key length");
         let body = recovery
             .trim()
@@ -802,8 +826,8 @@ impl Vault {
             blake3::hash(&*root).to_hex()[..8] == *checksum,
             "Recovery key checksum does not match"
         );
-        let backup: Backup =
-            serde_json::from_slice(&fs::read(path)?).context("Invalid backup file")?;
+        let backup: Backup = serde_json::from_slice(&read_bounded(path, MAX_BACKUP)?)
+            .context("Invalid backup file")?;
         ensure!(
             [1, 2].contains(&backup.version),
             "Unsupported backup version"
@@ -818,6 +842,13 @@ impl Vault {
             objects.len() <= 100_000 && objects.iter().any(|o| o.key == "profile/name"),
             "Invalid backup contents"
         );
+        let mut keys = std::collections::HashSet::new();
+        ensure!(
+            objects
+                .iter()
+                .all(|object| keys.insert(object.key.as_str())),
+            "Backup contains duplicate record identities"
+        );
         let name: String = serde_json::from_value(
             objects
                 .iter()
@@ -828,6 +859,13 @@ impl Vault {
         )?;
         crate::protocol::clean_name(&name)?;
         for object in &objects {
+            // Backups are portable data, not resumable filesystem capabilities.
+            // These records are excluded by export and must not be injected by
+            // a separately constructed, otherwise authenticated archive.
+            ensure!(
+                !object.key.starts_with("transfer/") && !object.key.starts_with("send_file/"),
+                "Backup contains nonportable file transfer state"
+            );
             ensure!(
                 object.key.len() <= 512 && object.key.is_ascii(),
                 "Invalid backup record"
@@ -957,5 +995,136 @@ impl Vault {
             let _ = fs::remove_file(path);
         }
         result
+    }
+}
+
+#[cfg(test)]
+mod security_input_tests {
+    use super::*;
+
+    #[test]
+    fn bounded_account_reads_reject_oversized_files_and_invalid_headers() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("bounded");
+        fs::write(&path, b"12345").unwrap();
+        assert_eq!(read_bounded(&path, 5).unwrap(), b"12345");
+        assert!(read_bounded(&path, 4).is_err());
+        assert!(read_bounded(temp.path(), 5).is_err());
+        let directory = temp.path().join("account");
+        let (vault, _) = Vault::create(&directory, "Test", "testing password 123").unwrap();
+        assert!(vault.reveal_key(&"p".repeat(1025)).is_err());
+        let header_path = directory.join("profile.json");
+        let original = fs::read(&header_path).unwrap();
+        fs::write(&header_path, vec![b' '; 4096]).unwrap();
+        assert!(vault.reveal_key("testing password 123").is_err());
+        let mut header: Header = serde_json::from_slice(&original).unwrap();
+        header.version = 2;
+        fs::write(&header_path, serde_json::to_vec(&header).unwrap()).unwrap();
+        assert!(vault.reveal_key("testing password 123").is_err());
+    }
+
+    #[test]
+    fn duplicate_backup_records_are_rejected_before_replacing_an_existing_account() {
+        let temp = tempfile::tempdir().unwrap();
+        let (source, recovery) =
+            Vault::create(&temp.path().join("source"), "Source", "source password 123").unwrap();
+        let target = temp.path().join("target");
+        let (existing, _) =
+            Vault::create(&target, "Keep existing", "existing password 123").unwrap();
+        existing
+            .put("history/sentinel", &"Keep this encrypted history")
+            .unwrap();
+        drop(existing);
+        let archive = temp.path().join("duplicate.ochat-backup");
+        let mut objects = source.backup_objects().unwrap();
+        objects.push(Object {
+            key: "profile/name".into(),
+            value: serde_json::json!("Injected\nname"),
+        });
+        let salt: [u8; 32] = rand::random();
+        let nonce: [u8; 24] = rand::random();
+        let key = Zeroizing::new(derive(&source.root, &salt, b"ochat/v2/backup"));
+        let clear = Zeroizing::new(serde_json::to_vec(&objects).unwrap());
+        let data = URL_SAFE_NO_PAD
+            .encode(encrypt(&key, &nonce, source.profile.as_bytes(), &clear).unwrap());
+        fs::write(
+            &archive,
+            serde_json::to_vec(&Backup {
+                version: 2,
+                profile: source.profile,
+                salt,
+                nonce,
+                data,
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        let error =
+            Vault::import(&target, &archive, &recovery, "replacement password", true).unwrap_err();
+        assert!(error.to_string().contains("duplicate record"));
+        let existing = Vault::unlock(&target, "existing password 123").unwrap();
+        assert_eq!(
+            existing.get::<String>("profile/name").unwrap().as_deref(),
+            Some("Keep existing")
+        );
+        assert_eq!(
+            existing
+                .get::<String>("history/sentinel")
+                .unwrap()
+                .as_deref(),
+            Some("Keep this encrypted history")
+        );
+    }
+    #[test]
+    fn backup_cannot_restore_filesystem_transfer_capabilities() {
+        let temp = tempfile::tempdir().unwrap();
+        let (source, recovery) =
+            Vault::create(&temp.path().join("source"), "Source", "source password 123").unwrap();
+        let target = temp.path().join("target");
+        let (existing, _) =
+            Vault::create(&target, "Keep existing", "existing password 123").unwrap();
+        existing.put("history/sentinel", &"Unchanged").unwrap();
+        drop(existing);
+        let archive = temp.path().join("nonportable.ochat-backup");
+        for record in ["transfer/room/peer/file", "send_file/room/file"] {
+            let mut objects = source.backup_objects().unwrap();
+            objects.push(Object {
+                key: record.into(),
+                value: serde_json::json!({"destination":"external-path"}),
+            });
+            let salt: [u8; 32] = rand::random();
+            let nonce: [u8; 24] = rand::random();
+            let key = Zeroizing::new(derive(&source.root, &salt, b"ochat/v2/backup"));
+            let clear = Zeroizing::new(serde_json::to_vec(&objects).unwrap());
+            let data = URL_SAFE_NO_PAD
+                .encode(encrypt(&key, &nonce, source.profile.as_bytes(), &clear).unwrap());
+            fs::write(
+                &archive,
+                serde_json::to_vec(&Backup {
+                    version: 2,
+                    profile: source.profile,
+                    salt,
+                    nonce,
+                    data,
+                })
+                .unwrap(),
+            )
+            .unwrap();
+            let error = Vault::import(&target, &archive, &recovery, "replacement password", true)
+                .unwrap_err();
+            assert!(error.to_string().contains("nonportable file transfer"));
+        }
+        let existing = Vault::unlock(&target, "existing password 123").unwrap();
+        assert_eq!(
+            existing.get::<String>("profile/name").unwrap().as_deref(),
+            Some("Keep existing")
+        );
+        assert_eq!(
+            existing
+                .get::<String>("history/sentinel")
+                .unwrap()
+                .as_deref(),
+            Some("Unchanged")
+        );
     }
 }

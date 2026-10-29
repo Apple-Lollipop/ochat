@@ -48,6 +48,17 @@ pub fn room_allows(
     sound: bool,
 ) -> bool {
     let preference = settings.room_notifications.get(&room);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if settings.workspace.quiet_now()
+        || preference
+            .and_then(|p| p.snoozed_until)
+            .is_some_and(|until| until > now)
+    {
+        return false;
+    }
     let scope = preference
         .and_then(|p| p.scope.as_deref())
         .unwrap_or(if sound {
@@ -78,7 +89,8 @@ pub fn room_sound(
         && room_allows(settings, room, direct, mentioned, true)
 }
 pub fn room_ringtone(settings: &crate::settings::Settings, room: Uuid) -> bool {
-    settings.availability != "busy"
+    !settings.workspace.quiet_now()
+        && settings.availability != "busy"
         && settings.ringtone
         && settings
             .room_notifications
@@ -240,6 +252,7 @@ mod tests {
                 sound: Some(true),
                 previews: Some(true),
                 ringtone: Some(false),
+                snoozed_until: None,
             },
         );
         assert!(!room_allows(&settings, room, true, true, false));

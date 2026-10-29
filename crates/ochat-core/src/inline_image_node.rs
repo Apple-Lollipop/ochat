@@ -51,6 +51,14 @@ impl ChatNode {
         bytes: Vec<u8>,
         channel: Option<Uuid>,
     ) -> Result<usize> {
+        self.send_inline_reply(bytes, channel, None).await
+    }
+    pub async fn send_inline_reply(
+        self: &Arc<Self>,
+        bytes: Vec<u8>,
+        channel: Option<Uuid>,
+        reply_to: Option<crate::conversations::MessageRef>,
+    ) -> Result<usize> {
         let snapshot = self.snapshot();
         let room = snapshot
             .room
@@ -78,7 +86,7 @@ impl ChatNode {
             .send_reply_in_channel(
                 &format!("{PREFIX}{}", asset.hash),
                 vec![],
-                None,
+                reply_to,
                 vec![],
                 channel,
             )
@@ -115,7 +123,12 @@ impl ChatNode {
         on_preview: Option<crate::inline_images::PreviewSink>,
     ) -> Result<String> {
         ensure!(emoji::valid_hash(&hash), "Invalid image reference");
-        if let Some(asset) = self.inline_asset(room, channel, &hash)? {
+        let this = self.clone();
+        let cached_hash = hash.clone();
+        if let Some(asset) =
+            tokio::task::spawn_blocking(move || this.inline_asset(room, channel, &cached_hash))
+                .await??
+        {
             return Ok(asset.data);
         }
         let expected = format!("{PREFIX}{hash}");
@@ -157,7 +170,12 @@ impl ChatNode {
         };
         static FETCHES: Semaphore = Semaphore::const_new(4);
         let _permit = FETCHES.acquire().await?;
-        if let Some(asset) = self.inline_asset(room, channel, &hash)? {
+        let this = self.clone();
+        let cached_hash = hash.clone();
+        if let Some(asset) =
+            tokio::task::spawn_blocking(move || this.inline_asset(room, channel, &cached_hash))
+                .await??
+        {
             return Ok(asset.data);
         }
         let conn = self

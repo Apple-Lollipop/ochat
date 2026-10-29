@@ -25,14 +25,17 @@ fn image_references(objects: &[Object]) -> std::collections::HashSet<String> {
 impl Vault {
     pub fn get_blob<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
         let id = self.storage_id(&format!("blob/{key}"));
-        let db = self.db.lock().unwrap();
-        let mut query = db.prepare("SELECT nonce,data FROM blobs WHERE id=?1")?;
-        let mut rows = query.query(params![id.as_slice()])?;
-        let Some(row) = rows.next()? else {
-            return Ok(None);
+        let (nonce, data) = {
+            let db = self.db.lock().unwrap();
+            let mut query = db.prepare("SELECT nonce,data FROM blobs WHERE id=?1")?;
+            let mut rows = query.query(params![id.as_slice()])?;
+            let Some(row) = rows.next()? else {
+                return Ok(None);
+            };
+            let nonce: Vec<u8> = row.get(0)?;
+            let data: Vec<u8> = row.get(1)?;
+            (nonce, data)
         };
-        let nonce: Vec<u8> = row.get(0)?;
-        let data: Vec<u8> = row.get(1)?;
         let clear = decrypt(
             &self.key,
             nonce.as_slice().try_into()?,
@@ -166,7 +169,12 @@ impl Vault {
     }
     pub(super) fn backup_objects(&self) -> Result<Vec<Object>> {
         let mut objects = self.objects()?;
-        objects.retain(|o| !o.key.starts_with("transfer/") && !o.key.starts_with("send_file/"));
+        objects.retain(|o| {
+            !o.key.starts_with("transfer/")
+                && !o.key.starts_with("send_file/")
+                && !o.key.starts_with("desktop_download/")
+                && !o.key.starts_with("desktop_transfer/")
+        });
         let references = image_references(&objects);
         let keys = objects
             .iter()

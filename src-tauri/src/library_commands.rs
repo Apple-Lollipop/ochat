@@ -115,6 +115,7 @@ pub async fn send_saved_image(
     room: Uuid,
     channel: Option<Uuid>,
     hash: String,
+    reply_to: Option<ochat_core::conversations::MessageRef>,
 ) -> Reply<usize> {
     if !ochat_core::emoji::valid_hash(&hash) {
         return Err("Invalid image identity".into());
@@ -133,7 +134,7 @@ pub async fn send_saved_image(
     .await
     .map_err(error)??;
     account
-        .send_inline(room, channel, bytes)
+        .send_inline_reply(room, channel, bytes, reply_to)
         .await
         .map_err(error)
 }

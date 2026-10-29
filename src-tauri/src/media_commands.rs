@@ -188,6 +188,7 @@ pub async fn send_dropped_files(
     room: Uuid,
     channel: Option<Uuid>,
     paths: Vec<PathBuf>,
+    reply_to: Option<ochat_core::conversations::MessageRef>,
 ) -> Reply<Vec<String>> {
     let node = node(&state).await?;
     if paths.is_empty() || paths.len() > 16 {
@@ -204,7 +205,7 @@ pub async fn send_dropped_files(
             failed.push(format!("{name}: choose a regular file"));
             continue;
         }
-        if let Err(e) = node.offer_file_in_channel(room, channel, path).await {
+        if let Err(e) = send_chat_path(&node, room, channel, path, reply_to.clone()).await {
             failed.push(format!("{name}: {e}"));
         }
     }
@@ -309,4 +310,41 @@ pub async fn request_visual_keyframe(
         .await?
         .request_visual_keyframe(room, &peer, control)
         .map_err(error)
+}
+
+/// Send supported images inline; other files keep explicit transfer consent.
+pub async fn send_chat_path(
+    node: &Arc<ChatNode>,
+    room: Uuid,
+    channel: Option<Uuid>,
+    path: PathBuf,
+    reply_to: Option<ochat_core::conversations::MessageRef>,
+) -> Reply<bool> {
+    let extension = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if matches!(extension.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp") {
+        use tokio::io::AsyncReadExt;
+        let file = tokio::fs::File::open(&path).await.map_err(error)?;
+        let limit = ochat_core::inline_images::MAX_IMAGE;
+        let mut bytes = Vec::new();
+        file.take(limit as u64 + 1)
+            .read_to_end(&mut bytes)
+            .await
+            .map_err(error)?;
+        if bytes.len() > limit {
+            return Err("Use an image smaller than 8 MiB".into());
+        }
+        node.send_inline_reply(room, channel, bytes, reply_to)
+            .await
+            .map_err(error)?;
+        Ok(true)
+    } else {
+        node.offer_file_in_channel(room, channel, path)
+            .await
+            .map_err(error)?;
+        Ok(false)
+    }
 }

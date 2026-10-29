@@ -58,7 +58,7 @@
     const c=ctx();if(!c.unlocked || !c.room || !Array.isArray(payload.paths) || payload.paths.length===0)return;
     if(payload.paths.length>16){api.toast('Drop up to 16 files at a time.');return;}
     if(pendingDrop){api.toast('Finish or cancel the current file offers first.');return;}
-    pendingDrop={paths:[...payload.paths],room:c.room,channel:c.channel || null,generation:c.generation};$('drop-send').hidden=false;$('drop-cancel').textContent='Cancel';
+    pendingDrop={paths:[...payload.paths],room:c.room,channel:c.channel || null,replyTo:c.replyTo || null,generation:c.generation};$('drop-send').hidden=false;$('drop-cancel').textContent='Cancel';
     $('drop-room-name').textContent=`Send to ${c.roomTitle(c.room)}`;$('drop-file-list').replaceChildren();$('drop-error').textContent='';
     for(const path of payload.paths){const li=document.createElement('li');li.textContent=path.split(/[\\/]/).pop();$('drop-file-list').append(li);}
     api.show('drop-dialog');

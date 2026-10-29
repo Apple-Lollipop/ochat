@@ -41,7 +41,7 @@ impl ChatHub {
             .into_iter()
             .map(|node| node.connection_diagnostics())
             .collect::<Vec<_>>();
-        serde_json::json!({"tor_enabled":crate::privacy::enabled(),"tor_ready":crate::privacy::ready(),"relay_enabled":self.settings().relay_enabled,"relay_only":self.settings().relay_only,"external_previews":self.settings().link_previews,"sessions":sessions,"blocked":self.blocked_peers()})
+        serde_json::json!({"tor_enabled":crate::privacy::enabled(),"tor_ready":crate::privacy::ready(),"relay_enabled":self.settings().relay_enabled,"relay_only":self.settings().relay_only,"external_previews":self.settings().automatic_link_previews(),"sessions":sessions,"blocked":self.blocked_peers()})
     }
     pub async fn start(name: &str, relay: bool) -> Result<Arc<Self>> {
         Ok(Self::new(ChatNode::start(name, relay).await?))
@@ -136,6 +136,18 @@ impl ChatHub {
         self.client(room)
             .context("Reconnect to this conversation first")?
             .send_inline(bytes, channel)
+            .await
+    }
+    pub async fn send_inline_reply(
+        &self,
+        room: Uuid,
+        channel: Option<Uuid>,
+        bytes: Vec<u8>,
+        reply_to: Option<crate::conversations::MessageRef>,
+    ) -> Result<usize> {
+        self.client(room)
+            .context("Reconnect to this conversation first")?
+            .send_inline_reply(bytes, channel, reply_to)
             .await
     }
     pub async fn load_inline(
@@ -477,15 +489,25 @@ impl ChatHub {
     pub fn media_busy(&self) -> bool {
         self.snapshots().iter().any(|s| s.voice || s.call.is_some())
     }
-    pub async fn select_room(&self, id: Uuid) -> Result<Snapshot> {
+    pub async fn select_room(&self, id: Uuid) -> Result<Option<Snapshot>> {
         let _guard = self.transition.lock().await;
+        let client = self.client(id);
+        anyhow::ensure!(
+            client.is_some() || self.archived_rooms()?.iter().any(|room| room.id == id),
+            "This conversation is no longer available"
+        );
         self.current().set_typing(false).await?;
         *self.selected.lock().unwrap() = Some(id);
-        let snapshot = self.snapshot();
+        // An offline selection has history, but no live snapshot. Never fall
+        // back to the root node and emit a different conversation as selected.
+        let Some(client) = client else {
+            return Ok(None);
+        };
+        let snapshot = client.snapshot();
         let _ = self.events.send(Event::State {
             snapshot: snapshot.clone(),
         });
-        Ok(snapshot)
+        Ok(Some(snapshot))
     }
     pub async fn create_room(self: &Arc<Self>, name: &str, capacity: usize) -> Result<String> {
         let _guard = self.transition.lock().await;

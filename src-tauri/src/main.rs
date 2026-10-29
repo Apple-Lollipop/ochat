@@ -21,8 +21,11 @@ use uuid::Uuid;
 mod capture_permissions;
 mod channel_commands;
 mod community_commands;
+mod desktop;
+mod taskbar;
 use channel_commands::*;
 use community_commands::*;
+use desktop::*;
 mod media_commands;
 mod risibank_commands;
 use risibank_commands::*;
@@ -58,6 +61,7 @@ struct Effects {
     capture_permissions: capture_permissions::CapturePermissions,
     viewer: viewer::Viewer,
     preview_epoch: AtomicU64,
+    image_epoch: AtomicU64,
     desktop_gate: SyncMutex<MessageSoundGate>,
     view: SyncMutex<(Option<Uuid>, Option<Uuid>, bool)>,
     ring: SyncMutex<Option<(Uuid, Uuid, Arc<AtomicBool>)>>,
@@ -82,6 +86,7 @@ impl Effects {
         }
         self.capture_permissions.clear();
         self.preview_epoch.fetch_add(1, Ordering::SeqCst);
+        self.image_epoch.fetch_add(1, Ordering::SeqCst);
         *self.view.lock().unwrap() = (None, None, false);
         self.stop_ring();
         self.stop_test();
@@ -295,6 +300,8 @@ fn output_sound(app: tauri::AppHandle, settings: Settings, cancel: Arc<AtomicBoo
 }
 #[derive(Default)]
 struct DesktopState {
+    tray_available: AtomicBool,
+    close_behavior: SyncMutex<String>,
     shortcut_transition: SyncMutex<()>,
     held_shortcuts: SyncMutex<std::collections::HashSet<u32>>,
     shortcuts: SyncMutex<Vec<(tauri_plugin_global_shortcut::Shortcut, bool)>>,
@@ -357,10 +364,13 @@ async fn attach(
     let mut events = node.subscribe();
     let effects = state.effects.clone();
     let bridge_node = node.clone();
+    let bridge_vault = vault.clone();
+    *state.close_behavior.lock().unwrap() = node.settings().workspace.close_behavior.clone();
     let bridge = tauri::async_runtime::spawn(async move {
         loop {
             match events.recv().await {
                 Ok(event) => {
+                    desktop::record(&bridge_vault, &event);
                     effects.event(&event, &bridge_node, &app);
                     let _ = app.emit_to("main", "ochat", event);
                 }
@@ -431,6 +441,7 @@ async fn lock_account(app: tauri::AppHandle, state: State<'_, DesktopState>) -> 
     state.effects.stop_all();
     let _ = app.notification().remove_all_active();
     let session = state.session.lock().await.take();
+    let _ = taskbar::apply(&app, 0);
     if let Some(s) = session {
         s.bridge.abort();
         s.node.close().await;
@@ -542,7 +553,7 @@ async fn snapshot(state: State<'_, DesktopState>) -> Reply<Snapshot> {
     Ok(node(&state).await?.snapshot())
 }
 #[tauri::command]
-async fn select_room(state: State<'_, DesktopState>, id: Uuid) -> Reply<Snapshot> {
+async fn select_room(state: State<'_, DesktopState>, id: Uuid) -> Reply<Option<Snapshot>> {
     node(&state).await?.select_room(id).await.map_err(error)
 }
 #[tauri::command]
@@ -877,7 +888,11 @@ fn copy_text(app: tauri::AppHandle, text: String) -> Reply<()> {
     Ok(())
 }
 #[tauri::command]
-async fn send_file(app: tauri::AppHandle, state: State<'_, DesktopState>) -> Reply<()> {
+async fn send_file(
+    app: tauri::AppHandle,
+    state: State<'_, DesktopState>,
+    reply_to: Option<ochat_core::conversations::MessageRef>,
+) -> Reply<bool> {
     let node = node(&state).await?;
     let snapshot = node.snapshot();
     let room = snapshot
@@ -894,11 +909,16 @@ async fn send_file(app: tauri::AppHandle, state: State<'_, DesktopState>) -> Rep
     .await
     .map_err(error)?;
     if let Some(path) = path {
-        node.offer_file_in_channel(room, channel, path.into_path().map_err(error)?)
-            .await
-            .map_err(|e| format!("{e:#}"))?;
+        return send_chat_path(
+            &node,
+            room,
+            channel,
+            path.into_path().map_err(error)?,
+            reply_to,
+        )
+        .await;
     }
-    Ok(())
+    Ok(false)
 }
 #[tauri::command]
 async fn receive_file(
@@ -909,6 +929,18 @@ async fn receive_file(
 ) -> Reply<bool> {
     let node = node(&state).await?;
     let offer = node.incoming_offer(&peer, id).map_err(error)?;
+    let transfer_vault = vault(&state).await?;
+    let transfer_room = node
+        .snapshots()
+        .into_iter()
+        .find_map(|s| {
+            let room = s.room?;
+            node.room_node(room.id)
+                .ok()
+                .filter(|n| n.incoming_offer(&peer, id).is_ok())
+                .map(|_| room.id)
+        })
+        .ok_or("This offer is no longer available")?;
     let path = tauri::async_runtime::spawn_blocking(move || {
         app.dialog()
             .file()
@@ -919,9 +951,15 @@ async fn receive_file(
     .await
     .map_err(error)?;
     if let Some(path) = path {
-        node.receive_file(&peer, id, path.into_path().map_err(error)?)
+        node.receive_file(&peer, id, path.clone().into_path().map_err(error)?)
             .await
             .map_err(|e| format!("{e:#}"))?;
+        transfer_vault
+            .put(
+                &format!("desktop_download/{transfer_room}/{id}"),
+                &path.into_path().map_err(error)?,
+            )
+            .map_err(error)?;
         Ok(true)
     } else {
         Ok(false)
@@ -981,8 +1019,15 @@ async fn set_room_illustration(
 async fn link_preview(
     state: State<'_, DesktopState>,
     url: String,
+    user_activated: Option<bool>,
 ) -> Reply<ochat_core::links::LinkPreview> {
-    node(&state).await?;
+    let account = node(&state).await?;
+    if user_activated != Some(true) && !account.settings().automatic_link_previews() {
+        return Err(
+            "Automatic link previews are disabled. Click Load preview to contact this website."
+                .into(),
+        );
+    }
     let epoch = state.effects.preview_epoch.load(Ordering::SeqCst);
     let cancelled = async {
         loop {
@@ -1061,6 +1106,7 @@ async fn save_settings(
         let _ = shortcuts::install(&app, &old);
         return Err(format!("{e:#}"));
     }
+    *state.close_behavior.lock().unwrap() = account.settings().workspace.close_behavior.clone();
     Ok(false)
 }
 fn native_theme(app: &tauri::AppHandle, theme: &str) -> Reply<()> {
@@ -1343,7 +1389,13 @@ fn main() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
         .manage(DesktopState::default())
+        .setup(desktop::setup)
         .invoke_handler(tauri::generate_handler![
+            desktop_quit,
+            save_workspace,
+            desktop_hide,
+            transfer_history,
+            reveal_download,
             privacy_dashboard,
             block_peer,
             cancel_pending_message,
@@ -1368,6 +1420,7 @@ fn main() {
             send_clipboard_image,
             read_clipboard_image,
             message_image,
+            begin_message_images,
             save_profile_bio,
             screen_capture_capabilities,
             start_linux_screen,
@@ -1444,6 +1497,7 @@ fn main() {
             read_marker,
             mark_read,
             unread_counts,
+            taskbar::set_taskbar_unread,
             chat_view,
             test_notification,
             delete_room,
@@ -1487,7 +1541,9 @@ fn main() {
     shortcut_keys::start(app.handle());
     app.run(|app, event| {
         if matches!(&event,tauri::RunEvent::WindowEvent{label,event:tauri::WindowEvent::Destroyed,..} if label=="visual-viewer") {app.state::<DesktopState>().effects.viewer.destroyed();}
-        if matches!(&event,tauri::RunEvent::WindowEvent{label,event:tauri::WindowEvent::CloseRequested{..},..} if label=="main") {app.state::<DesktopState>().effects.viewer.close(app);}
+        if let tauri::RunEvent::WindowEvent { label, event: tauri::WindowEvent::CloseRequested { api, .. }, .. } = &event {
+            if label == "main" { desktop::close(app, api); }
+        }
         if matches!(
             &event,
             tauri::RunEvent::WindowEvent {
