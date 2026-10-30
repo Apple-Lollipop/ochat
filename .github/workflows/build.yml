@@ -92,12 +92,16 @@ jobs:
     uses: ./.github/workflows/macos.yml
   release:
     name: Publish GitHub release
+    timeout-minutes: 20
     needs: [desktop, macos]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
       actions: read
+    concurrency:
+      group: release-${{ github.repository }}-${{ github.ref_name }}
+      cancel-in-progress: false
     env:
       RELEASE_TAG: ${{ github.ref_name }}
     steps:

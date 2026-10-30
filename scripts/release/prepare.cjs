@@ -44,4 +44,4 @@ function prepare(input,output,tag,version){
  return plan;
 }
 module.exports={prepare,expectedFiles,hash,regular};
-if(require.main===module){try{const version=require('../../package.json').version;const plan=prepare(process.argv[2],process.argv[3],process.argv[4],version);console.log('Verified '+plan.files.length+' release assets for '+plan.tag);}catch(error){console.error(error.message);process.exitCode=1;}}
+if(require.main===module){try{const source=path.resolve(process.env.RELEASE_SOURCE_DIR||path.join(__dirname,'../..'));const version=JSON.parse(fs.readFileSync(path.join(source,'package.json'),'utf8')).version;const plan=prepare(process.argv[2],process.argv[3],process.argv[4],version);console.log('Verified '+plan.files.length+' release assets for '+plan.tag);}catch(error){console.error(error.message);process.exitCode=1;}}

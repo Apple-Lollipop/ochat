@@ -15,7 +15,23 @@ function publish(planFile,{tag,version,repository,commit,run}){
   throw Error(token?detail.split(token).join('[redacted]'):detail);
  }
  const endpoint='repos/'+repository+'/releases/tags/'+encodeURIComponent(tag);
- function release(){const result=gh(['api',endpoint],true);return result===null?null:JSON.parse(result);}
+ let releaseId=null;
+ function releaseById(){
+  const value=JSON.parse(gh(['api','repos/'+repository+'/releases/'+releaseId]));
+  if(value.id!==releaseId||value.tag_name!==tag)throw Error('The GitHub release identity changed');
+  return value;
+ }
+ function release(){
+  if(releaseId!==null)return releaseById();
+  const result=gh(['api',endpoint],true);
+  // The by-tag endpoint excludes drafts. Locate drafts through the paginated
+  // release list, then use their stable ID throughout upload and publication.
+  const matches=result===null?JSON.parse(gh(['api','repos/'+repository+'/releases?per_page=100','--paginate','--slurp'])).flat().filter(value=>value.tag_name===tag):[JSON.parse(result)];
+  if(!matches.length)return null;
+  if(matches.length!==1||matches[0].tag_name!==tag||!Number.isSafeInteger(matches[0].id)||matches[0].id<=0)throw Error('Ambiguous or invalid GitHub release lookup');
+  releaseId=matches[0].id;
+  return releaseById();
+ }
  function verifyTag(){
   let object=JSON.parse(gh(['api','repos/'+repository+'/git/ref/tags/'+encodeURIComponent(tag)])).object;
   for(let n=0;object?.type==='tag'&&n<8;n++)object=JSON.parse(gh(['api','repos/'+repository+'/git/tags/'+object.sha])).object;
@@ -44,7 +60,9 @@ function publish(planFile,{tag,version,repository,commit,run}){
 module.exports={publish};
 if(require.main===module){try{
  if(!process.env.GH_TOKEN)throw Error('GH_TOKEN is required');
- const result=spawnSync('git',['rev-parse','HEAD'],{encoding:'utf8'});if(result.status!==0)throw Error('Could not identify the checked-out commit');
- const published=publish(process.argv[2],{tag:process.env.RELEASE_TAG,version:require('../../package.json').version,repository:process.env.GITHUB_REPOSITORY,commit:result.stdout.trim()});
+ const source=path.resolve(process.env.RELEASE_SOURCE_DIR||path.join(__dirname,'../..'));
+ const result=spawnSync('git',['rev-parse','HEAD'],{cwd:source,encoding:'utf8'});if(result.status!==0)throw Error('Could not identify the checked-out commit');
+ const version=JSON.parse(fs.readFileSync(path.join(source,'package.json'),'utf8')).version;
+ const published=publish(process.argv[2],{tag:process.env.RELEASE_TAG,version,repository:process.env.GITHUB_REPOSITORY,commit:result.stdout.trim()});
  console.log('Release available: '+published.url);
 }catch(error){console.error(error.message);process.exitCode=1;}}

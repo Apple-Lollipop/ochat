@@ -3,6 +3,8 @@ const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {prepare,expectedFiles,hash}=require('../scripts/release/prepare.cjs');
 const {publish}=require('../scripts/release/publish.cjs');
 const {validateVersions,validateCargoLock}=require('../scripts/release/check-version.cjs');
+const {verifyBuildRun}=require('../scripts/release/verify-build-run.cjs');
+const {spawnSync}=require('node:child_process');
 const VERSION='0.0.1',TAG='v0.0.1',COMMIT='a'.repeat(40);
 function fixture(t){
  const temp=fs.realpathSync(os.tmpdir()),root=fs.mkdtempSync(path.join(temp,'ochat-autorelease-test-')),input=path.join(root,'input'),output=path.join(root,'output');
@@ -15,7 +17,7 @@ function fixture(t){
  fs.writeFileSync(path.join(input,'macOS/validation.json'),JSON.stringify({verification:'success',signing:'ad-hoc',notarized:false}));
  return {root,input,output,make:()=>prepare(input,output,TAG,VERSION),planFile:path.join(output,'release-plan.json')};
 }
-function service(plan,{existing=null,annotated=false}={}){
+function service(plan,{existing=null,annotated=false,paged=false}={}){
  const state={release:existing,calls:[],uploadFailure:false,corruptUpload:false,moveAfterUpload:false,uploaded:false};
  const assets=files=>files.map(f=>({name:f.name,size:f.bytes,digest:'sha256:'+f.sha256,state:'uploaded'}));
  state.assets=assets;
@@ -24,7 +26,13 @@ function service(plan,{existing=null,annotated=false}={}){
   if(args[0]==='api'){
    if(args[1].includes('/git/ref/'))return ok({object:annotated?{type:'tag',sha:'c'.repeat(40)}:{type:'commit',sha:state.moveAfterUpload&&state.uploaded?'b'.repeat(40):COMMIT}});
    if(args[1].includes('/git/tags/'))return ok({object:{type:'commit',sha:COMMIT}});
-   return state.release?ok(state.release):{status:1,stdout:'',stderr:'gh: Not Found (HTTP 404)'};
+   const value=state.release?{id:42,tag_name:plan.tag,...state.release}:null;
+   if(args[1].includes('/releases?')){
+    assert.ok(args.includes('--paginate')&&args.includes('--slurp'));
+    return ok(paged?[[{id:41,tag_name:'v9.9.9',draft:true}],value?[value]:[]]:[value?[value]:[]]);
+   }
+   if(args[1].includes('/releases/tags/')&&value?.draft)return {status:1,stdout:'',stderr:'gh: Not Found (HTTP 404)'};
+   return value?ok(value):{status:1,stdout:'',stderr:'gh: Not Found (HTTP 404)'};
   }
   if(args[1]==='create'){state.release={draft:true,target_commitish:COMMIT,html_url:'https://github.com/example/ochat/releases/tag/'+TAG,assets:[]};return ok();}
   if(args[1]==='upload'){
@@ -46,6 +54,23 @@ test('release preparation verifies five platform files and generates a combined 
  const checksums=fs.readFileSync(path.join(f.output,'SHA256SUMS.txt'),'utf8').trim().split('\n');assert.equal(checksums.length,5);
  for(const entry of plan.files)assert.equal(hash(path.join(f.output,entry.name)),entry.sha256);
  assert.equal(plan.files.some(entry=>entry.name.endsWith('.json')),false);
+});
+test('recovery preparation reads the original tag version rather than the automation checkout',t=>{
+ const f=fixture(t),source=path.join(f.root,'original-source');fs.mkdirSync(source);fs.writeFileSync(path.join(source,'package.json'),JSON.stringify({version:VERSION}));
+ const result=spawnSync(process.execPath,[path.resolve(__dirname,'../scripts/release/prepare.cjs'),f.input,f.output,TAG],{encoding:'utf8',env:{...process.env,RELEASE_SOURCE_DIR:source}});
+ assert.equal(result.status,0,result.stderr);assert.equal(JSON.parse(fs.readFileSync(f.planFile)).version,VERSION);
+});
+test('recovery accepts only the original completed desktop run with three successful builders',()=>{
+ const run={repository:{full_name:'example/ochat'},head_sha:COMMIT,status:'completed',event:'push',path:'.github/workflows/build.yml'};
+ const jobs=[{name:'desktop (windows-latest, nsis, windows)',conclusion:'success'},{name:'desktop (ubuntu-24.04, linux)',conclusion:'success'},{name:'macOS (Apple Silicon) / macos',conclusion:'success'},{name:'Publish GitHub release',conclusion:'failure'}];
+ assert.equal(verifyBuildRun(run,jobs,{repository:'example/ochat',commit:COMMIT}),true);
+});
+test('recovery rejects foreign, incomplete or pull-request artifacts and failed platform checks',()=>{
+ const run={repository:{full_name:'example/ochat'},head_sha:COMMIT,status:'completed',event:'push',path:'.github/workflows/build.yml'};
+ const jobs=[{name:'windows-latest',conclusion:'success'},{name:'ubuntu-24.04',conclusion:'success'},{name:'Apple Silicon',conclusion:'success'}],context={repository:'example/ochat',commit:COMMIT};
+ for(const change of [{head_sha:'b'.repeat(40)},{repository:{full_name:'foreign/repo'}},{status:'in_progress'},{event:'pull_request'},{path:'.github/workflows/untrusted.yml'}])assert.throws(()=>verifyBuildRun({...run,...change},jobs,context));
+ assert.throws(()=>verifyBuildRun(run,jobs.map((j,i)=>i===1?{...j,conclusion:'failure'}:j),context));
+ assert.throws(()=>verifyBuildRun(run,[...jobs,{name:'Security audit',conclusion:'failure'}],context));
 });
 test('preparation rejects a wrong tag, missing platform and damaged artifact before staging',t=>{
  for(const failure of ['tag','missing','hash']){
@@ -81,6 +106,12 @@ test('publication verifies remote fingerprints before publishing a complete draf
  assert.equal(result.alreadyPublished,false);assert.equal(state.release.draft,false);assert.equal(state.release.assets.length,6);
  assert.ok(state.calls.findIndex(a=>a[1]==='upload')<state.calls.findIndex(a=>a[1]==='edit'));
  assert.ok(state.calls.some(a=>a[1]==='create'&&a.includes('--verify-tag')&&a.includes('--draft')));
+});
+test('an existing draft hidden from the by-tag endpoint is found on a later page and reused by ID',t=>{
+ const f=fixture(t),plan=f.make(),state=service(plan,{paged:true});state.release={draft:true,target_commitish:COMMIT,html_url:'draft',assets:[]};
+ publish(f.planFile,context(state));assert.equal(state.release.draft,false);
+ assert.equal(state.calls.some(a=>a[1]==='create'),false);
+ assert.ok(state.calls.some(a=>a[0]==='api'&&a[1].endsWith('/releases/42')));
 });
 test('an interrupted upload stays a draft and resumes only missing matching files',t=>{
  const f=fixture(t),plan=f.make(),state=service(plan);state.uploadFailure=true;
