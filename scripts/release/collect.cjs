@@ -4,9 +4,14 @@ const root=path.resolve(__dirname,'../..'),version=require(path.join(root,'packa
 const platform=process.argv[2],names={windows:'Windows',linux:'Linux',macos:'macOS'};
 if(!names[platform])throw Error('Use windows, linux or macos');
 const destination=path.join(root,'releases',names[platform]);
-const locations=process.argv[3]?[path.resolve(process.argv[3])]:platform==='windows'?[path.join(root,'target/release/bundle/nsis')]:platform==='linux'?[destination]:[path.join(root,'target/universal-apple-darwin/release/bundle/dmg')];
 const extension=platform==='windows'?/setup\.exe$/i:platform==='linux'?/\.(deb|AppImage)$/:/\.dmg$/i;
-const installers=locations.flatMap(directory=>fs.existsSync(directory)?fs.readdirSync(directory).filter(name=>name.includes(version)&&extension.test(name)).map(name=>path.join(directory,name)):[]);
+const find=locations=>locations.flatMap(directory=>fs.existsSync(directory)?fs.readdirSync(directory,{withFileTypes:true}).filter(entry=>entry.isFile()&&entry.name.includes(`_${version}_`)&&extension.test(entry.name)).map(entry=>path.join(directory,entry.name)):[]);
+const nativeLinux=[path.join(root,'target/release/bundle/deb'),path.join(root,'target/release/bundle/appimage')];
+const locations=process.argv[3]?[path.resolve(process.argv[3])]:platform==='windows'?[path.join(root,'target/release/bundle/nsis')]:platform==='linux'?nativeLinux:[path.join(root,'target/universal-apple-darwin/release/bundle/dmg')];
+let installers=find(locations);
+// CI invokes Tauri directly; local Linux builds may already have staged their files.
+// Prefer one native build over mixing its output with older staged files.
+if(platform==='linux'&&!process.argv[3]&&!installers.length)installers=find([destination]);
 if(!installers.length)throw Error('No real '+platform+' installer found for '+version);
 fs.mkdirSync(destination,{recursive:true});
 const files=installers.map(source=>{const name=path.basename(source),file=path.join(destination,name);if(path.resolve(source)!==file)fs.copyFileSync(source,file);const bytes=fs.readFileSync(file);return {name,bytes:bytes.length,sha256:crypto.createHash('sha256').update(bytes).digest('hex')};});

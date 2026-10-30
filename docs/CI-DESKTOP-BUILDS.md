@@ -10,6 +10,12 @@ The replacement test, `offered_snapshot_delivers_original_bytes_after_source_cha
 
 Previously, the dedicated **macOS DMG** workflow did not run core tests, so it could pass while all three combined jobs failed on that obsolete assertion. Both workflows now run the complete core suite.
 
+## Linux bundle collection
+
+Tauri writes Linux installers to `target/release/bundle/deb` and `target/release/bundle/appimage`. The former collector only inspected `releases/Linux`, a directory populated by the local Linux helper but not by a direct CI build. This caused collection to fail even after Tauri successfully built both installers.
+
+The collector now uses native Tauri bundle directories first, with the already-staged local directory as a fallback. It matches the exact version and avoids combining a fresh native build with stale staged outputs. Seven isolated fixture tests cover clean Linux CI output, local staging, version rejection, Windows NSIS/executable collection and both universal and explicit arm64 Mac paths.
+
 ## Run the corrected workflow
 
 In GitHub Actions, choose **Desktop builds → Run workflow → main**. A new run uses the corrected commit. Re-running an old execution repeats its original commit; an old release tag does not automatically acquire changes pushed to main.
