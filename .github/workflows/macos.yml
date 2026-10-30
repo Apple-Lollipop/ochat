@@ -56,6 +56,8 @@ jobs:
         run: npm test 2>&1 | tee macos-ui-tests.log
       - name: Check formatting
         run: cargo fmt --all -- --check
+      - name: Check core and peer-to-peer integrations
+        run: cargo test -p ochat-core --locked 2>&1 | tee macos-core-tests.log
       - name: Check WebKit layouts and macOS keyboard labels
         run: |
           npx playwright install webkit
@@ -99,6 +101,7 @@ jobs:
           path: |
             macos-build.log
             macos-ui-tests.log
+            macos-core-tests.log
             macos-webkit-tests.log
             releases/reports/macos-webkit-*.png
           if-no-files-found: ignore

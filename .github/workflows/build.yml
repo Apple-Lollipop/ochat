@@ -9,6 +9,14 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   desktop:
     strategy:
@@ -23,23 +31,30 @@ jobs:
             bundles: deb,appimage
             platform: linux
             arguments: '--config src-tauri/tauri.linux.conf.json'
-          - os: macos-latest
+          - os: macos-26
             bundles: app,dmg
             platform: macos
             arguments: '--target universal-apple-darwin'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
     env:
       CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
       APPIMAGE_EXTRACT_AND_RUN: '1'
+      NODE_OPTIONS: --max-old-space-size=4096
+      CI: 'true'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: '.node-version'
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -50,15 +65,42 @@ jobs:
         run: node scripts/security/verify-vendored-glib.cjs
       - name: Install universal macOS targets
         if: runner.os == 'macOS'
-        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
-      - run: npm test
+        run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          if ! command -v cmake >/dev/null; then brew install cmake; fi
+      - name: Check interface
+        run: npm test 2>&1 | tee ui-tests.log
       - run: cargo fmt --all -- --check
-      - run: cargo test -p ochat-core --locked
-      - run: npm run tauri -- build --bundles ${{ matrix.bundles }} ${{ matrix.arguments }} -- --locked
+      - name: Check core and peer-to-peer integrations
+        run: cargo test -p ochat-core --locked 2>&1 | tee core-tests.log
+      - name: Build desktop bundles
+        env:
+          APPLE_SIGNING_IDENTITY: '-'
+          MACOSX_DEPLOYMENT_TARGET: '11.0'
+        run: npm run tauri -- build --bundles ${{ matrix.bundles }} ${{ matrix.arguments }} -- --locked 2>&1 | tee desktop-build.log
+      - name: Verify universal macOS application
+        if: runner.os == 'macOS'
+        run: |
+          app="target/universal-apple-darwin/release/bundle/macos/Ochat.app"
+          test -d "$app"
+          lipo "$app/Contents/MacOS/ochat" -verify_arch x86_64 arm64
+          codesign --verify --deep --strict --verbose=2 "$app"
+          hdiutil verify target/universal-apple-darwin/release/bundle/dmg/*.dmg
       - run: node scripts/release/collect.cjs ${{ matrix.platform }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Ochat-${{ matrix.os }}
           path: releases/${{ matrix.platform == 'windows' && 'Windows' || matrix.platform == 'linux' && 'Linux' || 'macOS' }}/
           if-no-files-found: error
+      - name: Save diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Ochat-${{ matrix.os }}-logs
+          path: |
+            ui-tests.log
+            core-tests.log
+            desktop-build.log
+          if-no-files-found: ignore
+          retention-days: 7
 

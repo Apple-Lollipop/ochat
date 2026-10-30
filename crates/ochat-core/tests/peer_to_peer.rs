@@ -123,7 +123,7 @@ async fn wrong_secret_and_full_room_are_rejected() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn changed_source_is_not_saved_as_a_valid_file() {
+async fn offered_snapshot_delivers_original_bytes_after_source_changes() {
     let alice = ChatNode::start("Alice", false).await.unwrap();
     let bob = ChatNode::start("Bob", false).await.unwrap();
     let invite = alice.create_room("Fichiers", 2).await.unwrap();
@@ -134,6 +134,9 @@ async fn changed_source_is_not_saved_as_a_valid_file() {
     let destination = dir.path().join("received.txt");
     tokio::fs::write(&source, b"original").await.unwrap();
     let offer = alice.offer_file(source.clone()).await.unwrap();
+    assert_eq!(offer.hash, blake3::hash(b"original").to_hex().to_string());
+    // An offer freezes authenticated encrypted bytes. A same-size replacement
+    // of the original path must never replace the contents promised to Bob.
     tokio::fs::write(&source, b"tampered").await.unwrap();
     timeout(Duration::from_secs(5), async {
         while bob.incoming_offer(&alice.id(), offer.id).is_err() {
@@ -142,16 +145,15 @@ async fn changed_source_is_not_saved_as_a_valid_file() {
     })
     .await
     .unwrap();
-    assert!(
-        bob.receive_file(&alice.id(), offer.id, destination.clone())
-            .await
-            .is_err()
-    );
-    assert!(!destination.exists());
+    bob.receive_file(&alice.id(), offer.id, destination.clone())
+        .await
+        .unwrap();
+    assert_eq!(tokio::fs::read(&destination).await.unwrap(), b"original");
+    assert_eq!(tokio::fs::read(&source).await.unwrap(), b"tampered");
     assert_eq!(
         std::fs::read_dir(dir.path()).unwrap().count(),
-        1,
-        "Le fichier partiel doit être effacé"
+        2,
+        "Only the source and verified destination should remain"
     );
     alice.close().await;
     bob.close().await;
