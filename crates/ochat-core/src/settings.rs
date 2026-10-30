@@ -240,6 +240,7 @@ impl Default for AudioSettings {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
+    pub automatic_update_checks: bool,
     pub workspace: WorkspaceOptions,
     pub availability: String,
     pub tor_enabled: bool,
@@ -270,6 +271,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            automatic_update_checks: true,
             workspace: WorkspaceOptions::default(),
             video: VideoPreferences::default(),
             availability: "available".into(),

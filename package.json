@@ -1,12 +1,12 @@
 {
   "name": "ochat-desktop",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
     "tauri": "tauri",
-    "test": "node --test tests/composer.test.cjs tests/passwords.test.cjs tests/organization.test.cjs tests/presence-finish.test.cjs tests/rich-text.test.cjs tests/fullscreen.test.cjs tests/release-collect.test.cjs tests/release-publish.test.cjs",
+    "test": "node --test tests/composer.test.cjs tests/passwords.test.cjs tests/organization.test.cjs tests/presence-finish.test.cjs tests/rich-text.test.cjs tests/fullscreen.test.cjs tests/release-collect.test.cjs tests/release-publish.test.cjs tests/updates.test.cjs",
     "test:workspace": "node scripts/qa/productivity.cjs"
   },
   "devDependencies": {

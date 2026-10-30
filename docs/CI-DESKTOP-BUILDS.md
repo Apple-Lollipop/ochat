@@ -20,11 +20,11 @@ The collector now uses native Tauri bundle directories first, with the already-s
 
 In GitHub Actions, choose **Desktop builds → Run workflow → main**. A new run uses the corrected commit. Re-running an old execution repeats its original commit; an old release tag does not automatically acquire changes pushed to main.
 
-Published tags remain attached to their original source commit so existing release binaries and checksums retain their provenance. The application version is **0.0.2**.
+Published tags remain attached to their original source commit so existing release binaries and checksums retain their provenance. The application version is **0.0.3**.
 
 ## Automatic GitHub releases
 
-Pushing a new version tag such as `v0.0.3` starts the three builds and automatically publishes a GitHub release after all of them succeed. Pushes to main, manual builds and pull requests produce Actions artifacts only. Main builds also populate reusable default-branch caches for subsequent tags.
+Pushing a new version tag such as `v0.0.4` starts the three builds and automatically publishes a GitHub release after all of them succeed. Pushes to main, manual builds and pull requests produce Actions artifacts only. Main builds also populate reusable default-branch caches for subsequent tags.
 
 The tag must match the versions in npm, its lockfile, Tauri and both Rust packages. The workflow checks this before compilation. It downloads the Windows, Linux and Apple Silicon artifacts from that same workflow run, checks their manifests, sizes and SHA-256 hashes, and requires the Mac signature/architecture validation to have succeeded. It publishes the Windows installer and standalone EXE, Linux DEB/AppImage, Mac ARM64 DMG, and one combined `SHA256SUMS.txt`.
 
@@ -36,17 +36,17 @@ If a publication script bug affects an already-built tag, **Resume verified rele
 
 For the next version:
 
-1. Run `npm version 0.0.3 --no-git-tag-version` to update npm and its lockfile.
-2. Set `[workspace.package].version` in `Cargo.toml` and `version` in `src-tauri/tauri.conf.json` to `0.0.3`.
+1. Run `npm version 0.0.4 --no-git-tag-version` to update npm and its lockfile.
+2. Set `[workspace.package].version` in `Cargo.toml` and `version` in `src-tauri/tauri.conf.json` to `0.0.4`.
 3. Run `cargo update --workspace` to synchronize the Cargo lockfile, then `node scripts/release/check-version.cjs`. The check also reads the local package versions in `Cargo.lock`; manifest metadata alone is not enough.
 4. Commit the version files, create the tag and push:
 
 ```sh
 git add package.json package-lock.json Cargo.toml Cargo.lock src-tauri/tauri.conf.json
-git commit -m "Release 0.0.3"
-git tag -a v0.0.3 -m "Ochat 0.0.3"
+git commit -m "Release 0.0.4"
+git tag -a v0.0.4 -m "Ochat 0.0.4"
 git push origin main
-git push origin v0.0.3
+git push origin v0.0.4
 ```
 
 These are instructions for a future release. Commit synchronized versions before tagging; existing published tags keep their original source commit. Publication itself is exercised only by a matching new pushed tag; local tests use a simulated GitHub CLI and never create live releases.

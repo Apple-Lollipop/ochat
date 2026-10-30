@@ -1,0 +1,9 @@
+.update-settings{margin-top:24px;padding-top:16px;border-top:1px solid var(--line)}
+.update-notice{position:fixed;right:20px;bottom:20px;z-index:40;width:min(360px,calc(100vw - 32px));box-sizing:border-box;padding:18px;border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--text);box-shadow:0 8px 32px #0003}
+.update-notice[hidden]{display:none}
+.update-notice p{font-size:14px;line-height:1.5;margin:8px 0 16px;overflow-wrap:anywhere}
+.update-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.update-actions button{min-height:36px}
+.update-settings .text-button{margin-left:8px}
+@media(max-width:600px){.update-notice{right:16px;bottom:16px}}
+@media(forced-colors:active){.update-notice{border-color:CanvasText}}

@@ -22,6 +22,7 @@ pub mod rooms;
 pub mod settings;
 pub mod stereo;
 pub mod transmission;
+pub mod updates;
 pub mod vault;
 pub mod visual;
 pub mod voice_codec;

@@ -40,6 +40,17 @@ mod shortcuts;
 mod viewer;
 use media_commands::*;
 type Reply<T> = Result<T, String>;
+#[tauri::command]
+async fn check_for_updates(
+    state: State<'_, DesktopState>,
+) -> Reply<ochat_core::updates::UpdateInfo> {
+    node(&state).await?;
+    ochat_core::updates::check().await.map_err(error)
+}
+#[tauri::command]
+fn app_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
 fn error(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
@@ -1391,6 +1402,8 @@ fn main() {
         .manage(DesktopState::default())
         .setup(desktop::setup)
         .invoke_handler(tauri::generate_handler![
+            check_for_updates,
+            app_version,
             desktop_quit,
             save_workspace,
             desktop_hide,
