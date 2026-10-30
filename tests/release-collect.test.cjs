@@ -33,8 +33,8 @@ test('collection rejects a different version instead of claiming it is the reque
 test('Windows collection preserves the NSIS installer and standalone executable',t=>{
  const f=fixture(t);f.write('target/release/bundle/nsis/Ochat_0.0.1_x64-setup.exe','installer');f.write('target/release/ochat.exe','executable');success(f.run('windows'));assert.deepEqual(f.manifest('Windows').files.map(entry=>entry.name).sort(),['Ochat_0.0.1_x64-setup.exe','Ochat_0.0.1_x64.exe']);
 });
-test('macOS collection retains the universal default directory',t=>{
- const f=fixture(t);f.write('target/universal-apple-darwin/release/bundle/dmg/Ochat_0.0.1_universal.dmg','universal');success(f.run('macos'));assert.equal(f.manifest('macOS').files[0].name,'Ochat_0.0.1_universal.dmg');
+test('macOS collection defaults to Apple Silicon and excludes older universal output',t=>{
+ const f=fixture(t);f.write('target/aarch64-apple-darwin/release/bundle/dmg/Ochat_0.0.1_aarch64.dmg','arm64');f.write('target/universal-apple-darwin/release/bundle/dmg/Ochat_0.0.1_universal.dmg','older build');success(f.run('macos'));assert.deepEqual(f.manifest('macOS').files.map(entry=>entry.name),['Ochat_0.0.1_aarch64.dmg']);
 });
 test('explicit collection directories retain the dedicated arm64 macOS workflow',t=>{
  const f=fixture(t),directory='target/aarch64-apple-darwin/release/bundle/dmg';f.write(directory+'/Ochat_0.0.1_aarch64.dmg','arm64');f.write('target/universal-apple-darwin/release/bundle/dmg/Ochat_0.0.1_universal.dmg','other build');success(f.run('macos',directory));assert.deepEqual(f.manifest('macOS').files.map(entry=>entry.name),['Ochat_0.0.1_aarch64.dmg']);

@@ -7,7 +7,7 @@ const destination=path.join(root,'releases',names[platform]);
 const extension=platform==='windows'?/setup\.exe$/i:platform==='linux'?/\.(deb|AppImage)$/:/\.dmg$/i;
 const find=locations=>locations.flatMap(directory=>fs.existsSync(directory)?fs.readdirSync(directory,{withFileTypes:true}).filter(entry=>entry.isFile()&&entry.name.includes(`_${version}_`)&&extension.test(entry.name)).map(entry=>path.join(directory,entry.name)):[]);
 const nativeLinux=[path.join(root,'target/release/bundle/deb'),path.join(root,'target/release/bundle/appimage')];
-const locations=process.argv[3]?[path.resolve(process.argv[3])]:platform==='windows'?[path.join(root,'target/release/bundle/nsis')]:platform==='linux'?nativeLinux:[path.join(root,'target/universal-apple-darwin/release/bundle/dmg')];
+const locations=process.argv[3]?[path.resolve(process.argv[3])]:platform==='windows'?[path.join(root,'target/release/bundle/nsis')]:platform==='linux'?nativeLinux:[path.join(root,'target/aarch64-apple-darwin/release/bundle/dmg')];
 let installers=find(locations);
 // CI invokes Tauri directly; local Linux builds may already have staged their files.
 // Prefer one native build over mixing its output with older staged files.

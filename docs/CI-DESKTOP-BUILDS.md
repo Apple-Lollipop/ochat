@@ -1,6 +1,6 @@
 # Desktop build checks
 
-The **Desktop builds** workflow builds Windows NSIS, Linux DEB/AppImage and a universal macOS APP/DMG (Intel and Apple Silicon). It runs interface tests, Rust formatting and the complete core test suite before creating installers. A failing test intentionally prevents packaging.
+The **Desktop builds** workflow builds Windows NSIS, Linux DEB/AppImage and an Apple Silicon (arm64) macOS APP/DMG. Its Mac job calls the existing **macOS DMG** workflow in `.github/workflows/macos.yml`, which also remains available independently. Mac configuration, caches, tests, signing and bundle verification have one shared definition. It runs interface tests, Rust formatting and the complete core test suite before creating installers. A failing test intentionally prevents packaging.
 
 ## File snapshot regression
 
@@ -14,7 +14,7 @@ Previously, the dedicated **macOS DMG** workflow did not run core tests, so it c
 
 Tauri writes Linux installers to `target/release/bundle/deb` and `target/release/bundle/appimage`. The former collector only inspected `releases/Linux`, a directory populated by the local Linux helper but not by a direct CI build. This caused collection to fail even after Tauri successfully built both installers.
 
-The collector now uses native Tauri bundle directories first, with the already-staged local directory as a fallback. It matches the exact version and avoids combining a fresh native build with stale staged outputs. Seven isolated fixture tests cover clean Linux CI output, local staging, version rejection, Windows NSIS/executable collection and both universal and explicit arm64 Mac paths.
+The collector now uses native Tauri bundle directories first, with the already-staged local directory as a fallback. It matches the exact version and avoids combining a fresh native build with stale staged outputs. Seven isolated fixture tests cover clean Linux CI output, local staging, version rejection, Windows NSIS/executable collection and default/explicit arm64 Mac paths. The default Mac collection ignores older universal bundles.
 
 ## Run the corrected workflow
 
@@ -24,6 +24,6 @@ Published tags remain attached to their original source commit so existing relea
 
 ## Diagnostics
 
-All three combined jobs use Bash with failure propagation through log pipelines. Node has a 4 GiB heap limit, Rust build caches are retained, and jobs have a 90-minute limit. macOS uses the same runner family, deployment target and ad-hoc signing setting as the dedicated workflow; the combined build keeps both architectures.
+All three platform jobs use Bash with failure propagation through log pipelines. Interface tests have a 4 GiB Node heap limit, Rust build caches are retained, and jobs have a 90-minute limit. The shared macOS workflow uses `macos-26`, three Rust build jobs, sccache, the arm64 target, deployment target 11.0 and ad-hoc signing. It builds Apple Silicon only.
 
-Failed jobs upload their available interface, core and build logs as `Ochat-<runner>-logs`. The dedicated Mac workflow also saves its core test log. macOS binaries are locally signature-checked; ad-hoc signing is not notarization.
+Windows and Linux jobs upload their available interface, core and build logs as `Ochat-<runner>-logs`. The shared Mac workflow saves its core, interface, WebKit and build logs and produces `Ochat-macOS-arm64`. macOS binaries are locally signature-checked; ad-hoc signing is not notarization.

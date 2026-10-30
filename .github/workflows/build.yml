@@ -31,10 +31,6 @@ jobs:
             bundles: deb,appimage
             platform: linux
             arguments: '--config src-tauri/tauri.linux.conf.json'
-          - os: macos-26
-            bundles: app,dmg
-            platform: macos
-            arguments: '--target universal-apple-darwin'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     env:
@@ -63,34 +59,18 @@ jobs:
       - run: npm ci
       - name: Verify vendored security patch integrity
         run: node scripts/security/verify-vendored-glib.cjs
-      - name: Install universal macOS targets
-        if: runner.os == 'macOS'
-        run: |
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin
-          if ! command -v cmake >/dev/null; then brew install cmake; fi
       - name: Check interface
         run: npm test 2>&1 | tee ui-tests.log
       - run: cargo fmt --all -- --check
       - name: Check core and peer-to-peer integrations
         run: cargo test -p ochat-core --locked 2>&1 | tee core-tests.log
       - name: Build desktop bundles
-        env:
-          APPLE_SIGNING_IDENTITY: '-'
-          MACOSX_DEPLOYMENT_TARGET: '11.0'
         run: npm run tauri -- build --bundles ${{ matrix.bundles }} ${{ matrix.arguments }} -- --locked 2>&1 | tee desktop-build.log
-      - name: Verify universal macOS application
-        if: runner.os == 'macOS'
-        run: |
-          app="target/universal-apple-darwin/release/bundle/macos/Ochat.app"
-          test -d "$app"
-          lipo "$app/Contents/MacOS/ochat" -verify_arch x86_64 arm64
-          codesign --verify --deep --strict --verbose=2 "$app"
-          hdiutil verify target/universal-apple-darwin/release/bundle/dmg/*.dmg
       - run: node scripts/release/collect.cjs ${{ matrix.platform }}
       - uses: actions/upload-artifact@v7
         with:
           name: Ochat-${{ matrix.os }}
-          path: releases/${{ matrix.platform == 'windows' && 'Windows' || matrix.platform == 'linux' && 'Linux' || 'macOS' }}/
+          path: releases/${{ matrix.platform == 'windows' && 'Windows' || 'Linux' }}/
           if-no-files-found: error
       - name: Save diagnostics
         if: always()
@@ -103,4 +83,7 @@ jobs:
             desktop-build.log
           if-no-files-found: ignore
           retention-days: 7
+  macos:
+    name: macOS (Apple Silicon)
+    uses: ./.github/workflows/macos.yml
 
