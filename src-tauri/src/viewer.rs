@@ -221,6 +221,7 @@ pub async fn open_visual_viewer(
         .min_inner_size(320.0, 220.0)
         .resizable(true)
         .always_on_top(true)
+        .on_navigation(capture_permissions::trusted_url)
         .build();
         if let Err(e) = result {
             state.effects.viewer.target.lock().unwrap().take();

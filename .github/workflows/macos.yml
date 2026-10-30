@@ -56,6 +56,10 @@ jobs:
         run: npm test 2>&1 | tee macos-ui-tests.log
       - name: Check formatting
         run: cargo fmt --all -- --check
+      - name: Check WebKit layouts and macOS keyboard labels
+        run: |
+          npx playwright install webkit
+          node scripts/qa/macos-webkit.cjs 2>&1 | tee macos-webkit-tests.log
       - name: Build arm64 application and DMG
         run: |
           npm run tauri -- build --target aarch64-apple-darwin --bundles app,dmg -- --locked 2>&1 | tee macos-build.log
@@ -95,5 +99,7 @@ jobs:
           path: |
             macos-build.log
             macos-ui-tests.log
+            macos-webkit-tests.log
+            releases/reports/macos-webkit-*.png
           if-no-files-found: ignore
           retention-days: 7

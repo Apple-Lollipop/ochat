@@ -1,0 +1,4 @@
+.ochat-fullscreen{position:fixed!important;inset:0!important;z-index:2147483646!important;width:100vw!important;height:100vh!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:#101114!important;transform:none!important;display:flex!important;flex-direction:column!important;}
+.ochat-fullscreen .visual-surface{flex:1 1 0!important;height:auto!important;min-height:0;max-height:none!important;aspect-ratio:auto!important;}
+.fullscreen-close{position:fixed;z-index:2147483647;top:12px;right:12px;border:1px solid #ffffff55;border-radius:9px;background:#202124;color:white;padding:9px 14px;font:inherit;cursor:pointer;}
+.fullscreen-close:focus-visible{outline:2px solid #69b4ff;outline-offset:3px;}

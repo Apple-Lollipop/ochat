@@ -1540,6 +1540,15 @@ fn main() {
         .expect("Could not start Ochat");
     shortcut_keys::start(app.handle());
     app.run(|app, event| {
+        // A hidden main window must remain reachable through the macOS Dock.
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen { .. } = &event {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }
         if matches!(&event,tauri::RunEvent::WindowEvent{label,event:tauri::WindowEvent::Destroyed,..} if label=="visual-viewer") {app.state::<DesktopState>().effects.viewer.destroyed();}
         if let tauri::RunEvent::WindowEvent { label, event: tauri::WindowEvent::CloseRequested { api, .. }, .. } = &event {
             if label == "main" { desktop::close(app, api); }

@@ -62,7 +62,7 @@
   function openPalette(){if(!unlocked)return;query.value='';paletteIndex=0;paletteRender();palette.openPanel();query.focus();}
   document.addEventListener('keydown',e=>{if(unlocked&&(e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey&&e.key.toLowerCase()==='k'&&!e.isComposing){const modal=document.querySelector('dialog:modal');if(modal&&modal!==palette)return;e.preventDefault();e.stopImmediatePropagation();if(palette.open)palette.close();else openPalette();}},true);
   palette.addEventListener('close',()=>{query.value='';results.replaceChildren();paletteActions=[];});
-  const quick=button('⌕',openPalette,'icon-button');quick.id='quick-switcher';quick.title='Go to… (Ctrl+K)';quick.setAttribute('aria-label','Go to conversation or command');quick.textContent='Go to…  Ctrl+K';quick.className='sidebar-action';document.querySelector('.sidebar-shortcuts').append(quick);
+  const quick=button('⌕',openPalette,'icon-button');quick.id='quick-switcher';quick.title=/Mac/i.test(navigator.platform || '')?'Go to… (⌘K)':'Go to… (Ctrl+K)';quick.setAttribute('aria-label','Go to conversation or command');quick.textContent=/Mac/i.test(navigator.platform || '')?'Go to…  ⌘K':'Go to…  Ctrl+K';quick.className='sidebar-action';document.querySelector('.sidebar-shortcuts').append(quick);
 
   // Navigation and member columns use fixed, responsive widths.
   const focus=button('Focus',()=>save({focus_mode:!prefs().focus_mode}),'text-button');focus.id='workspace-focus';focus.title='Toggle focus mode';

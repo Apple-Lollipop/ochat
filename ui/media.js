@@ -36,7 +36,9 @@
   }
   function captureError(error,kind){
     switch(error?.name){
-      case 'NotAllowedError':return 'Capture was cancelled or access was denied. You can try again.';
+      case 'NotAllowedError':return /Mac/i.test(navigator.platform || '')
+        ? `Capture was cancelled or access was denied. Check Ochat’s ${kind==='camera'?'camera':'screen recording'} access in System Settings > Privacy & Security, then try again.`
+        : 'Capture was cancelled or access was denied. You can try again.';
       case 'NotFoundError':return kind==='camera'?'No camera was found. Connect a camera and try again.':'No screen capture source is available.';
       case 'NotReadableError':return kind==='camera'?'The camera could not be opened. Close other camera apps and try again.':'The system could not start screen capture. Check the desktop sharing service.';
       case 'OverconstrainedError':return 'This source does not support these capture settings. Try a lower resolution or frame rate.';
@@ -71,7 +73,7 @@
     const caption=document.createElement('figcaption'),label=document.createElement('span'),tools=document.createElement('span');tools.className='visual-card-tools';label.textContent=`${name} · ${kind==='screen'?'Screen':'Camera'}`;
     const button=(text,fn)=>{const b=document.createElement('button');b.type='button';b.className='visual-expand';b.textContent=text;b.onclick=fn;tools.append(b);return b;};
     button('Pop out',()=>{const current=source();if(current)api.invoke('open_visual_viewer',{room:current.room,peer:local?ctx().voice?.id:current.peer,kind,session:current.control?.session || current.session}).catch(api.toast);});
-    button('Expand',()=>card.requestFullscreen?.().catch(api.toast));const focus=button('Focus',()=>focusCard(card));focus.classList.add('visual-focus');focus.setAttribute('aria-pressed','false');focus.disabled=!local;if(local)button('Quality…',()=>openOptions(kind));
+    button('Expand',()=>window.OchatFullscreen.toggle(card).catch(api.toast));const focus=button('Focus',()=>focusCard(card));focus.classList.add('visual-focus');focus.setAttribute('aria-pressed','false');focus.disabled=!local;if(local)button('Quality…',()=>openOptions(kind));
     const audio=kind==='screen'?button(local?'Share sound':'Sound off',()=>{if(local){const c=captures.get('screen');if(c)toggleAudio(c,!c.audioActive);}}):null;
     if(audio && (!local || !soundAvailable))audio.disabled=true;
     caption.append(label,tools);card.append(surface,caption);$('visual-grid').append(card);card.streamLabel=label;return {card,surface,label,audio,focus};
@@ -243,10 +245,10 @@
     if(!item || !item.watching)return;
     item.session=session;item.media=media;item.at=Date.now();if(item.audio)item.audio.textContent=audioStates.get(item.peer)?'Sound shared':'Sound off';item.renderer.packet(value);stage();
   }
-  function reset(){epoch++;if(layoutFrame)cancelAnimationFrame(layoutFrame);layoutFrame=0;for(const kind of [...pending.keys(),...captures.keys()])stop(kind);for(const item of remote.values()){item.renderer.dispose();item.card.remove();}remote.clear();audioStates.clear();options=null;collapsed=false;focusedCard=null;$('visual-grid').classList.remove('has-focus');$('capture-options-dialog').close();$('visual-grid').replaceChildren();$('visual-stage').hidden=true;document.body.dataset.visualActive='false';document.body.dataset.streamFocused='false';}
+  function reset(){window.OchatFullscreen?.exit().catch(api.toast);epoch++;if(layoutFrame)cancelAnimationFrame(layoutFrame);layoutFrame=0;for(const kind of [...pending.keys(),...captures.keys()])stop(kind);for(const item of remote.values()){item.renderer.dispose();item.card.remove();}remote.clear();audioStates.clear();options=null;collapsed=false;focusedCard=null;$('visual-grid').classList.remove('has-focus');$('capture-options-dialog').close();$('visual-grid').replaceChildren();$('visual-stage').hidden=true;document.body.dataset.visualActive='false';document.body.dataset.streamFocused='false';}
   if(typeof ResizeObserver==='function'){const geometry=new ResizeObserver(queueLayout);for(const id of ['conversation-panel','voice-bar','composer','reply-draft','typing-status','voice-channel-view']){const target=$(id);if(target)geometry.observe(target);}}window.addEventListener('resize',queueLayout);
   window.OchatMedia={sync,event,reset,openOptions,
-    init(callbacks){api=callbacks;api.invoke('screen_capture_capabilities').then(value=>nativeScreen=!!value?.native).catch(()=>{});api.invoke('system_audio_capabilities').then(value=>soundAvailable=!!value?.available).catch(()=>{});
+    init(callbacks){api=callbacks;window.addEventListener('ochat-fullscreen-error',event=>api.toast(event.detail));api.invoke('screen_capture_capabilities').then(value=>nativeScreen=!!value?.native).catch(()=>{});api.invoke('system_audio_capabilities').then(value=>soundAvailable=!!value?.available).catch(()=>{});
       for(const kind of ['camera','screen'])$(kind+'-button').onclick=()=>captures.has(kind)||pending.has(kind)?stop(kind):openOptions(kind);
       $('collapse-video').onclick=()=>{collapsed=!collapsed;stage();};
       $('capture-options-form').onsubmit=async event=>{event.preventDefault();const choice=options;if(!choice)return;choice.newCapture=!captures.has(choice.kind);choice.busy=true;choice.completed=false;const button=$('capture-start');if(button.disabled)return;button.disabled=true;$('capture-options-error').textContent='';

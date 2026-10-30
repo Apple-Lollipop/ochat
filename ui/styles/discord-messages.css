@@ -3,12 +3,12 @@
 .discord-shell .message,.discord-shell .message.own {position:relative;display:flex;flex-direction:row;align-items:flex-start;gap:13px;margin:9px 0;padding:6px 18px;border-radius:0;background:transparent;}
 .discord-shell .message:hover,.discord-shell .message:focus-within {background:var(--hover);}
 .discord-shell .message>.avatar,.discord-shell .message.own>.avatar {display:grid;width:36px;height:36px;min-width:36px;font-size:11px;margin-top:2px;background:var(--panel);border:1px solid var(--hairline);border-radius:50%;}
-.discord-shell .message .message-body {flex:1;min-width:0;max-width:calc(100% - 49px);width:auto;}
+.discord-shell .message .message-body {flex:1 1 0%;min-width:0;max-width:calc(100% - 49px);width:auto;}
 .discord-shell .message .message-header,.discord-shell .message.own .message-header {display:flex;justify-content:flex-start;align-items:baseline;position:static;gap:9px;width:auto;margin:0 0 4px;text-align:left;}
 .discord-shell .message-author {position:relative;min-height:28px;min-width:28px;font-size:14px;line-height:1.4;font-weight:550;color:var(--text);padding:0;margin:-4px 0;}
 .discord-shell .own .message-author {color:var(--text);}
 .discord-shell .message-header time {font-size:10px;color:var(--muted);padding:0;opacity:1;}
-.discord-shell .message .bubble,.discord-shell .message.own .bubble,.discord-shell .message.unread .bubble {font-size:15px;line-height:1.5;color:var(--message-text);background:transparent;border:0;border-radius:0;padding:0;margin:0;max-width:100%;width:auto;box-shadow:none;}
+.discord-shell .message .bubble,.discord-shell .message.own .bubble,.discord-shell .message.unread .bubble {font-size:15px;line-height:1.5;color:var(--message-text);background:transparent;border:0;border-radius:0;padding:0;margin:0;min-width:0;max-width:100%;width:auto;box-shadow:none;word-break:break-word;overflow-wrap:break-word;overflow-wrap:anywhere;}
 .discord-shell .message.unread {border-left:2px solid var(--accent);padding-left:16px;background:var(--selection);}
 .discord-shell .message.mentions-you {background:var(--selection);border-left:2px solid var(--accent);padding-left:16px;}
 .discord-shell .message.continuation {margin-top:-6px;padding-top:3px;}

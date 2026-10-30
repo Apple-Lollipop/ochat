@@ -20,6 +20,10 @@
   panel.replaceChildren(...groups);
  }
  reorderAudio();
+ if(/Mac/i.test(navigator.platform || '')){
+  const hint=document.querySelector('#audio-shortcuts .field-hint');
+  if(hint)hint.textContent='Record a key combination such as Command + Shift + M. Global shortcuts work outside Ochat when macOS allows them. Control, Option, Shift or Command alone are not supported as global shortcuts on macOS. Deafen mutes playback and your microphone; undeafening keeps the microphone muted.';
+ }
  for(const panel of settings.querySelectorAll('[data-settings-panel]')){
   if(panel.dataset.settingsPanel==='audio')continue;
   const children=[...panel.children];let group=null;

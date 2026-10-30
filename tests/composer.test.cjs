@@ -1,6 +1,21 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { test } = require('node:test');
+
+test('macOS capture denial identifies the relevant privacy setting without retrying capture',async t=>{
+ const a=await setup(t);Object.defineProperty(a.window.navigator,'platform',{value:'MacIntel',configurable:true});let captures=0;
+ const denied=async()=>{captures++;throw new a.window.DOMException('Denied','NotAllowedError');};
+ Object.defineProperty(a.window.navigator,'mediaDevices',{value:{getUserMedia:denied,getDisplayMedia:denied},configurable:true});
+ a.session({...connected,voice:true,call:{id:'call',peer:'peer',status:'active'},peers:[{...connected.peers[0],voice:true,visual_media:true,visual_revision:3}]});
+ assert.equal(captures,0);
+ for(const kind of ['camera','screen']){
+  a.get(kind+'-button').click();await flush();a.get('capture-options-form').dispatchEvent(new a.window.Event('submit',{cancelable:true}));await flush();await flush();
+  assert.match(a.get('capture-options-error').textContent,/System Settings > Privacy & Security/);
+  assert.ok(a.get('capture-options-error').textContent.includes(kind==='camera'?'camera':'screen recording'));
+  a.get('capture-options-dialog').close();
+ }
+ assert.equal(captures,2);assert.equal(a.calls.some(([command])=>command==='start_visual'),false);
+});
 const source = fs.readFileSync('ui/vendor/twemoji/twemoji.min.js','utf8')+'\n'+fs.readFileSync('ui/emoji-renderer.js','utf8')+'\n'+fs.readFileSync('ui/profiles.js','utf8')+'\n'+fs.readFileSync('ui/community.js','utf8')+'\n'+fs.readFileSync('ui/discord.js','utf8')+'\n'+fs.readFileSync('ui/presentation.js','utf8')+'\n'+fs.readFileSync('ui/video-renderer.js','utf8')+'\n'+fs.readFileSync('ui/media.js','utf8')+'\n'+fs.readFileSync('ui/features.js','utf8')+'\n'+fs.readFileSync('ui/meme-picker.js','utf8')+'\n'+fs.readFileSync('ui/personalization.js','utf8')+'\n'+fs.readFileSync('ui/passwords.js','utf8')+'\n'+fs.readFileSync('ui/timeline-scroll.js','utf8')+'\n'+fs.readFileSync('ui/photo-crop.js','utf8')+'\n'+fs.readFileSync('ui/emoji-popover.js','utf8')+'\n'+fs.readFileSync('ui/rich-text.js','utf8')+'\n'+fs.readFileSync('ui/message-media.js','utf8')+'\n'+fs.readFileSync('ui/app.js','utf8')+'\n'+fs.readFileSync('ui/organization.js','utf8')+'\n'+fs.readFileSync('ui/presence.js','utf8')+'\n'+fs.readFileSync('ui/workspace.js','utf8')+'\n'+fs.readFileSync('ui/native-controls.js','utf8')+'\n'+fs.readFileSync('ui/conversation-create.js','utf8');
 const html = fs.readFileSync('ui/index.html','utf8').replace(/<script\b[^>]*>[\s\S]*?<\/script>/g,'').replace(/<link\b[^>]*>/g,'');
 const settings = {theme:'system',audio:{input_device:null,output_device:null,input_volume:1,output_volume:1,noise_suppression:true,echo_cancellation:true,automatic_gain:true},message_sound:true,ringtone:true,sound_volume:0.35,relay_enabled:false};
