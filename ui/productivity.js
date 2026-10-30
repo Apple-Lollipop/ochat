@@ -43,8 +43,8 @@
   const minutes=s=>{const [h,m]=s.split(':').map(Number);return h*60+m;};const time=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
   function fillDraft(value=prefs()){for(const [key,input]of Object.entries(fields)){if(input.type==='checkbox')input.checked=!!value[key];else input.value=key.startsWith('quiet_')?time(value[key]):value[key];}dayControls.forEach((n,i)=>n.checked=value.quiet_days.includes(i));}
   function read(){const value={...prefs()};for(const [key,input] of Object.entries(fields))value[key]=input.type==='checkbox'?input.checked:key.startsWith('quiet_')?minutes(input.value):input.value;value.quiet_days=dayControls.flatMap((n,i)=>n.checked?[i]:[]);return {workspace:value};}
-  function formValues(){return JSON.stringify([...$('settings-dialog').querySelectorAll('input,select,textarea')].filter(n=>!n.closest('.settings-search-tools')).map(n=>[n.id,n.type==='checkbox'?n.checked:n.value]));}
-  function dirty(){if(settingsBaseline!==null)stamp.textContent=formValues()!==settingsBaseline?'Unsaved changes':'';}
+  function formValues(){return JSON.stringify([...$('settings-dialog').querySelectorAll('input,select,textarea')].filter(n=>!n.closest('.settings-search-tools,[data-settings-independent]')).map(n=>[n.id,n.type==='checkbox'?n.checked:n.value]));}
+  function dirty(){if(settingsBaseline!==null)stamp.textContent=formValues()!==settingsBaseline||window.OchatDiscordWebhook?.isDirty()?'Unsaved changes':'';}
   $('settings-dialog').addEventListener('input',dirty);$('settings-dialog').addEventListener('change',dirty);
   $('settings-dialog').addEventListener('close',()=>{settingsBaseline=null;stamp.textContent='';settingsSearch.value='';searchResults.replaceChildren();apply();});
   const searchTools=make('div','settings-search-tools'),settingsSearch=make('input');settingsSearch.type='search';settingsSearch.placeholder='Search settings…';settingsSearch.setAttribute('aria-label','Search settings');const searchResults=make('div','settings-search-results');searchTools.append(settingsSearch,searchResults);$('settings-dialog').querySelector('h2').after(searchTools);

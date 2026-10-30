@@ -35,6 +35,23 @@ mod sync_validation_tests {
         ChatNode::project_with_updates(&mut legacy, &[]).unwrap();
         assert_eq!(legacy.timestamp, 123);
     }
+    #[test]
+    fn equal_time_messages_have_the_same_order_independent_of_record_arrival() {
+        let room = Uuid::new_v4();
+        let entry = |peer: &str, id: &str| HistoryEntry {
+            room,
+            timestamp: 42,
+            event: serde_json::json!({"type":"message","peer":peer,"id":id}),
+        };
+        let mut a = vec![entry("b", "1"), entry("a", "2"), entry("a", "1")];
+        let mut b = a.iter().rev().cloned().collect::<Vec<_>>();
+        a.sort_by(HistoryEntry::timeline_cmp);
+        b.sort_by(HistoryEntry::timeline_cmp);
+        assert_eq!(
+            serde_json::to_value(a).unwrap(),
+            serde_json::to_value(b).unwrap()
+        );
+    }
 
     #[tokio::test]
     async fn unknown_history_authors_do_not_bypass_signature_or_room_validation() {
@@ -598,6 +615,7 @@ impl ChatNode {
             .context("Message is no longer available")?;
         ensure!(entry.event["deleted"] != true, "This message was deleted");
         let wire = Wire::Chat {
+            timestamp: Some(entry.timestamp),
             channel: entry.event["channel"].as_str().and_then(|s| s.parse().ok()),
             id,
             text: entry.event["text"].as_str().unwrap_or("").into(),
@@ -710,6 +728,7 @@ impl ChatNode {
                     .insert(key, delivery.clone());
             }
             let wire = Wire::Chat {
+                timestamp: Some(entry.timestamp),
                 channel,
                 id: delivery.message,
                 text: entry.event["text"].as_str().unwrap_or_default().into(),

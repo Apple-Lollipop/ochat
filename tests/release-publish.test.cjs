@@ -1,7 +1,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {prepare,expectedFiles,hash}=require('../scripts/release/prepare.cjs');
-const {publish}=require('../scripts/release/publish.cjs');
+const {publish,notesForVersion}=require('../scripts/release/publish.cjs');
 const {validateVersions,validateCargoLock}=require('../scripts/release/check-version.cjs');
 const {verifyBuildRun}=require('../scripts/release/verify-build-run.cjs');
 const {spawnSync}=require('node:child_process');
@@ -117,6 +117,20 @@ test('an interrupted upload stays a draft and resumes only missing matching file
  const f=fixture(t),plan=f.make(),state=service(plan);state.uploadFailure=true;
  assert.throws(()=>publish(f.planFile,context(state)),/interrupted/);assert.equal(state.release.draft,true);assert.equal(state.release.assets.length,1);assert.equal(state.calls.some(a=>a[1]==='edit'),false);
  state.uploadFailure=false;state.calls=[];publish(f.planFile,context(state));assert.equal(state.release.assets.length,6);assert.equal(state.calls.find(a=>a[1]==='upload').length,8);
+});
+
+test('curated notes are read from the built source and prepended as one literal CLI argument',t=>{
+ const f=fixture(t),plan=f.make(),state=service(plan),directory=path.join(f.root,'scripts/release');fs.mkdirSync(directory,{recursive:true});
+ const notes='Discord online announcement\n\nKeeps :name: and $(literal) unchanged.';
+ fs.writeFileSync(path.join(directory,'notes.json'),JSON.stringify({[VERSION]:notes}));
+ assert.equal(notesForVersion(f.root,VERSION),notes);assert.equal(notesForVersion(f.root,'9.9.9'),undefined);
+ publish(f.planFile,{...context(state),notes});const create=state.calls.find(args=>args[1]==='create');
+ assert.equal(create[create.indexOf('--notes')+1],notes);assert.ok(create.includes('--generate-notes'));
+});
+test('malformed curated notes stop publication before touching GitHub',t=>{
+ const f=fixture(t),plan=f.make(),state=service(plan);
+ for(const notes of ['',{},'a'.repeat(10001)])assert.throws(()=>publish(f.planFile,{...context(state),notes}),/Invalid curated release notes/);
+ assert.equal(state.calls.length,0);
 });
 test('bad server digests prevent publishing even after an upload succeeds',t=>{
  const f=fixture(t),plan=f.make(),state=service(plan);state.corruptUpload=true;

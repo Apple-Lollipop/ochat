@@ -1,0 +1,5 @@
+.discord-webhook-settings{margin-top:24px;padding-top:16px;border-top:1px solid var(--line)}
+.webhook-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.webhook-actions button{min-height:36px}
+#discord-webhook-url{width:100%;box-sizing:border-box}
+#discord-webhook-status{overflow-wrap:anywhere;min-height:1.4em}

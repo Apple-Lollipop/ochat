@@ -277,6 +277,24 @@ pub struct HistoryEntry {
     pub timestamp: u64,
     pub event: serde_json::Value,
 }
+impl HistoryEntry {
+    pub(crate) fn timeline_cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.timestamp
+            .cmp(&other.timestamp)
+            .then_with(|| {
+                self.event["peer"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .cmp(other.event["peer"].as_str().unwrap_or_default())
+            })
+            .then_with(|| {
+                self.event["id"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .cmp(other.event["id"].as_str().unwrap_or_default())
+            })
+    }
+}
 
 struct Peer {
     voice_state: Option<VoiceState>,
@@ -2559,6 +2577,7 @@ impl ChatNode {
                 self.emit_state();
             }
             Wire::Chat {
+                timestamp,
                 channel,
                 reply_to,
                 id,
@@ -2609,7 +2628,7 @@ impl ChatNode {
                         peer: peer.into(),
                         name,
                         text,
-                        timestamp: now(),
+                        timestamp: received_message_time(timestamp, now()),
                         emojis,
                     });
                 }
@@ -3159,6 +3178,7 @@ impl ChatNode {
                 .filter(|e| !names.contains(&e.name))
                 .take(64 - emojis.len()),
         );
+        let timestamp = now();
         self.emit(Event::Message {
             channel,
             reply_to: reply_to.clone(),
@@ -3168,12 +3188,13 @@ impl ChatNode {
             peer: self.id(),
             name: self.display_name(),
             text: text.into(),
-            timestamp: now(),
+            timestamp,
             emojis: emojis.clone(),
         });
         self.prepare_delivery(room, id)?;
         let sent = self
             .broadcast(Wire::Chat {
+                timestamp: Some(timestamp),
                 channel,
                 reply_to,
                 mentions,
@@ -3714,7 +3735,7 @@ impl ChatNode {
                 .collect()
         };
         self.project_history(&mut entries)?;
-        entries.sort_by_key(|e| e.timestamp);
+        entries.sort_by(HistoryEntry::timeline_cmp);
         Ok(entries)
     }
     pub fn message(&self, room: Uuid, reference: &MessageRef) -> Result<Option<HistoryEntry>> {
@@ -4958,6 +4979,13 @@ impl ChatNode {
     }
 }
 
+fn received_message_time(timestamp: Option<u64>, received: u64) -> u64 {
+    // The authenticated sender can state its own send time, never another
+    // author's. Keep old queued messages, but do not admit arbitrary future dates.
+    timestamp
+        .filter(|&time| time > 0 && time <= received.saturating_add(5 * 60 * 1000))
+        .unwrap_or(received)
+}
 fn now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -4967,6 +4995,70 @@ fn now() -> u64 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn message_times_accept_backlogs_and_bound_untrusted_future_dates() {
+        assert_eq!(received_message_time(Some(100), 1000), 100);
+        assert_eq!(received_message_time(None, 1000), 1000);
+        assert_eq!(received_message_time(Some(0), 1000), 1000);
+        assert_eq!(received_message_time(Some(u64::MAX), 1000), 1000);
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn reversed_message_arrival_retains_sender_time_and_duplicate_cannot_change_it() {
+        let sender = ChatNode::start("Sender", false).await.unwrap();
+        let receiver = ChatNode::start("Receiver", false).await.unwrap();
+        let invitation = sender.create_room("Ordered backlog", 0).await.unwrap();
+        receiver.join(&invitation).await.unwrap();
+        let room = receiver.snapshot().room.unwrap().id;
+        let timestamp = now().saturating_sub(20_000);
+        let first = Uuid::new_v4();
+        let second = Uuid::new_v4();
+        let frame = |id, text: &str, timestamp| Wire::Chat {
+            timestamp,
+            id,
+            text: text.into(),
+            channel: None,
+            reply_to: None,
+            emojis: vec![],
+            mentions: vec![],
+        };
+        let mut seen = HashSet::new();
+        receiver
+            .handle_wire(
+                room,
+                &sender.id(),
+                frame(second, "Second", Some(timestamp + 100)),
+                &mut seen,
+            )
+            .unwrap();
+        receiver
+            .handle_wire(
+                room,
+                &sender.id(),
+                frame(first, "First", Some(timestamp)),
+                &mut seen,
+            )
+            .unwrap();
+        receiver
+            .handle_wire(
+                room,
+                &sender.id(),
+                frame(first, "Duplicate", Some(timestamp + 200)),
+                &mut seen,
+            )
+            .unwrap();
+        let history = receiver
+            .history(room)
+            .unwrap()
+            .into_iter()
+            .filter(|entry| entry.event["type"] == "message")
+            .collect::<Vec<_>>();
+        assert_eq!(history.len(), 2);
+        assert_eq!(history[0].event["text"], "First");
+        assert_eq!(history[0].timestamp, timestamp);
+        assert_eq!(history[1].timestamp, timestamp + 100);
+        receiver.close().await;
+        sender.close().await;
+    }
     fn test_voice_wire(node: &ChatNode, active: bool, started_at: Option<u64>) -> Wire {
         let room = node.snapshot().room.unwrap();
         if room.capacity == 2 {

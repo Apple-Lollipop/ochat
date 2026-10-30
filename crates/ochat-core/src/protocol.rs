@@ -235,6 +235,10 @@ pub enum Wire {
         illustration: Option<crate::rooms::RoomIllustration>,
     },
     Chat {
+        /// Original sender time, also preserved when replaying the outbox.
+        /// Missing in older ochat/5 clients; receipt time is the legacy fallback.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        timestamp: Option<u64>,
         #[serde(default)]
         channel: Option<Uuid>,
         #[serde(default)]
@@ -411,6 +415,21 @@ pub fn room_proof(
 #[cfg(test)]
 mod proof_security_tests {
     use super::*;
+    #[test]
+    fn chat_sender_time_roundtrips_and_old_frames_remain_readable() {
+        let mut value = serde_json::json!({"type":"chat","id":Uuid::new_v4(),"text":"Backlog","timestamp":1740});
+        let wire: Wire = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(serde_json::to_value(wire).unwrap()["timestamp"], 1740);
+        value.as_object_mut().unwrap().remove("timestamp");
+        let wire: Wire = serde_json::from_value(value).unwrap();
+        assert!(matches!(
+            wire,
+            Wire::Chat {
+                timestamp: None,
+                ..
+            }
+        ));
+    }
     #[test]
     fn proof_binds_both_endpoints_room_nonce_secret_and_direction() {
         let room = Uuid::new_v4();

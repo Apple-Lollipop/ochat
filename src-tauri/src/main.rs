@@ -22,6 +22,8 @@ mod capture_permissions;
 mod channel_commands;
 mod community_commands;
 mod desktop;
+mod discord_commands;
+use discord_commands::*;
 mod taskbar;
 use channel_commands::*;
 use community_commands::*;
@@ -68,6 +70,8 @@ struct TestRun {
 }
 #[derive(Default)]
 struct Effects {
+    discord_gate: ochat_core::discord_webhook::Gate,
+    discord_cancel: SyncMutex<tokio_util::sync::CancellationToken>,
     linux_screen: SyncMutex<Option<linux_screen::Capture>>,
     capture_permissions: capture_permissions::CapturePermissions,
     viewer: viewer::Viewer,
@@ -92,6 +96,7 @@ impl Effects {
         }
     }
     fn stop_all(&self) {
+        self.discord_cancel.lock().unwrap().cancel();
         if let Some(capture) = self.linux_screen.lock().unwrap().take() {
             capture.stop();
         }
@@ -399,6 +404,7 @@ async fn attach(
         rooms: node.archived_rooms().map_err(error)?,
         recovery_key,
     };
+    *state.effects.discord_cancel.lock().unwrap() = tokio_util::sync::CancellationToken::new();
     *current = Some(Session {
         node,
         vault,
@@ -1402,6 +1408,9 @@ fn main() {
         .manage(DesktopState::default())
         .setup(desktop::setup)
         .invoke_handler(tauri::generate_handler![
+            discord_webhook_status,
+            save_discord_webhook,
+            notify_discord_online,
             check_for_updates,
             app_version,
             desktop_quit,

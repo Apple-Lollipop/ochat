@@ -48,7 +48,7 @@ pub fn thread_entries(
                 ))
         })
         .collect::<Vec<_>>();
-    matches.sort_by_key(|entry| entry.timestamp);
+    matches.sort_by(crate::network::HistoryEntry::timeline_cmp);
     matches
 }
 

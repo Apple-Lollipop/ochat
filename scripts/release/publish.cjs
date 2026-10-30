@@ -1,6 +1,14 @@
 const fs=require('node:fs'),path=require('node:path'),{spawnSync}=require('node:child_process');
 const {expectedFiles,hash,regular}=require('./prepare.cjs'),{VERSION}=require('./check-version.cjs');
-function publish(planFile,{tag,version,repository,commit,run}){
+function notesForVersion(source,version){
+ const file=path.join(source,'scripts/release/notes.json');
+ if(!fs.existsSync(file))return undefined;
+ const notes=JSON.parse(fs.readFileSync(file,'utf8'))[version];
+ if(notes!==undefined&&(typeof notes!=='string'||!notes.trim()||notes.length>10000))throw Error('Invalid curated release notes');
+ return notes;
+}
+function publish(planFile,{tag,version,repository,commit,run,notes}){
+ if(notes!==undefined&&(typeof notes!=='string'||!notes.trim()||notes.length>10000))throw Error('Invalid curated release notes');
  if(!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)||!/^[a-f0-9]{40}$/.test(commit))throw Error('Invalid GitHub release context');
  regular(planFile);const plan=JSON.parse(fs.readFileSync(planFile,'utf8')),directory=path.dirname(path.resolve(planFile));
  if(!VERSION.test(version)||tag!=='v'+version||plan.tag!==tag||plan.version!==version)throw Error('Release plan does not match the tag and project version');
@@ -45,7 +53,7 @@ function publish(planFile,{tag,version,repository,commit,run}){
  if(current&&!current.draft){verifyAssets(current);return {url:current.html_url,alreadyPublished:true};}
  if(current&&current.target_commitish!==commit)throw Error('Existing draft belongs to another source commit');
  if(!current){
-  gh(['release','create',tag,'--draft','--verify-tag','--target',commit,'--title','Ochat '+version,'--generate-notes',...(version.includes('-')?['--prerelease']:[])]);
+  gh(['release','create',tag,'--draft','--verify-tag','--target',commit,'--title','Ochat '+version,'--generate-notes',...(notes?['--notes',notes]:[]),...(version.includes('-')?['--prerelease']:[])]);
   current=release();if(!current?.draft||current.target_commitish!==commit)throw Error('Could not create the expected draft release');
  }
  const existing=current.assets||[];
@@ -57,12 +65,12 @@ function publish(planFile,{tag,version,repository,commit,run}){
  current=release();if(!current||current.draft)throw Error('Release is still a draft');verifyAssets(current);
  return {url:current.html_url,alreadyPublished:false};
 }
-module.exports={publish};
+module.exports={publish,notesForVersion};
 if(require.main===module){try{
  if(!process.env.GH_TOKEN)throw Error('GH_TOKEN is required');
  const source=path.resolve(process.env.RELEASE_SOURCE_DIR||path.join(__dirname,'../..'));
  const result=spawnSync('git',['rev-parse','HEAD'],{cwd:source,encoding:'utf8'});if(result.status!==0)throw Error('Could not identify the checked-out commit');
  const version=JSON.parse(fs.readFileSync(path.join(source,'package.json'),'utf8')).version;
- const published=publish(process.argv[2],{tag:process.env.RELEASE_TAG,version,repository:process.env.GITHUB_REPOSITORY,commit:result.stdout.trim()});
+ const published=publish(process.argv[2],{tag:process.env.RELEASE_TAG,version,repository:process.env.GITHUB_REPOSITORY,commit:result.stdout.trim(),notes:notesForVersion(source,version)});
  console.log('Release available: '+published.url);
 }catch(error){console.error(error.message);process.exitCode=1;}}

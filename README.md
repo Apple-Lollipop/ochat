@@ -49,6 +49,7 @@ Encrypted peer-to-peer conversations, voice calls and shared spaces for desktop.
 - System, Light and Dark themes, custom accents, background colors, gradients and window transparency.
 - Responsive navigation, compact message menus and a persistent voice dock.
 - Optional update checks after unlocking, a manual check in Settings → Account, and a choice to open the latest GitHub release for manual download.
+- Optional Discord webhook announcements when opening Ochat, with encrypted credential storage and a manual test. Invisible status suppresses automatic announcements.
 - Independent message, file, ringtone and voice-channel sounds, with volume controls.
 - Optional notification previews and per-conversation notification preferences.
 - Workspace preferences: resizable navigation/member panels, a focus mode, density presets, and an always-visible, collapsed or selection-based formatting toolbar.
@@ -108,8 +109,8 @@ Build the DEB and AppImage, then run the AppImage:
 
 ```sh
 npm run tauri -- build --config src-tauri/tauri.linux.conf.json --bundles deb,appimage -- --locked
-chmod +x target/release/bundle/appimage/Ochat_0.0.3_amd64.AppImage
-APPIMAGE_EXTRACT_AND_RUN=1 ./target/release/bundle/appimage/Ochat_0.0.3_amd64.AppImage
+chmod +x target/release/bundle/appimage/Ochat_0.0.4_amd64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./target/release/bundle/appimage/Ochat_0.0.4_amd64.AppImage
 ```
 
 The DEB is in `target/release/bundle/deb/`. These artifact names assume an x86-64 Linux build.

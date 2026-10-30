@@ -210,15 +210,22 @@ impl ChatHub {
                     let _ = hub.events.send(Event::RoomState {
                         snapshot: snapshot.clone(),
                     });
-                    let selected = hub.current();
-                    if Arc::ptr_eq(&selected, &source)
-                        || (snapshot.room.is_none()
-                            && hub
-                                .client(hub.selected.lock().unwrap().unwrap_or_default())
-                                .is_none())
+                    // Background updates remain RoomState. A queued snapshot
+                    // must never be replaced with the root/current room, notably
+                    // while an archived, disconnected conversation is selected.
+                    let selected = hub.selected.lock().unwrap();
+                    if snapshot
+                        .room
+                        .as_ref()
+                        .is_some_and(|room| Some(room.id) == *selected)
+                        && source
+                            .snapshot()
+                            .room
+                            .as_ref()
+                            .is_some_and(|room| Some(room.id) == *selected)
                     {
                         let _ = hub.events.send(Event::State {
-                            snapshot: hub.snapshot(),
+                            snapshot: snapshot.clone(),
                         });
                     }
                 } else {

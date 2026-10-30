@@ -117,13 +117,36 @@ async fn selecting_an_offline_conversation_does_not_emit_the_active_root_room() 
     hub.create_room("Active root room", 0).await.unwrap();
     let active = hub.snapshot().room.unwrap().id;
     assert_ne!(active, offline);
-    let mut events = hub.subscribe();
     assert!(hub.select_room(offline).await.unwrap().is_none());
-    while let Ok(event) = events.try_recv() {
-        if let ochat_core::Event::State { snapshot } = event {
-            assert_ne!(snapshot.room.map(|room| room.id), Some(active));
+    // Subscribe after the selection so legitimate events sent before it cannot
+    // be mistaken for a selection regression. Force two background updates:
+    // their RoomState events must remain visible without becoming selected State.
+    let mut events = hub.subscribe();
+    let background = hub.room_node(active).unwrap();
+    background.set_muted(true);
+    background.set_muted(false);
+    timeout(Duration::from_secs(5), async {
+        let mut saw_muted = false;
+        loop {
+            match events.recv().await.unwrap() {
+                ochat_core::Event::State { snapshot } => {
+                    assert_ne!(snapshot.room.map(|room| room.id), Some(active));
+                }
+                ochat_core::Event::RoomState { snapshot }
+                    if snapshot.room.as_ref().is_some_and(|room| room.id == active) =>
+                {
+                    if snapshot.muted {
+                        saw_muted = true;
+                    } else if saw_muted {
+                        break;
+                    }
+                }
+                _ => {}
+            }
         }
-    }
+    })
+    .await
+    .expect("background room updates did not arrive");
     let selected = hub.select_room(active).await.unwrap().unwrap();
     assert_eq!(selected.room.unwrap().id, active);
     assert!(hub.select_room(uuid::Uuid::new_v4()).await.is_err());

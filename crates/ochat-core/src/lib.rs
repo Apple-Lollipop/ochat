@@ -5,6 +5,7 @@ pub mod calls;
 pub mod channels;
 pub mod conversations;
 pub mod diagnostics;
+pub mod discord_webhook;
 pub mod emoji;
 pub mod governance;
 pub mod hub;
