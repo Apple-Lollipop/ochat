@@ -20,8 +20,8 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 90
     env:
-      CARGO_BUILD_JOBS: '3'
       CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
       APPLE_SIGNING_IDENTITY: '-'
       MACOSX_DEPLOYMENT_TARGET: '11.0'
       CI: 'true'
@@ -33,6 +33,9 @@ jobs:
         with:
           node-version-file: '.node-version'
           cache: npm
+      - name: Configure compilation parallelism
+        run: |
+          node -e 'const os=require("node:os"),fs=require("node:fs"); const jobs=Math.max(1,Math.min(4,os.availableParallelism(),Math.floor(os.totalmem()/2**30/4))); fs.appendFileSync(process.env.GITHUB_ENV,`CARGO_BUILD_JOBS=${jobs}\n`); console.log(`Using ${jobs} parallel Rust compilation jobs`);'
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
@@ -40,7 +43,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - uses: mozilla-actions/sccache-action@v0.0.9
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Check project and release versions
         env:
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}

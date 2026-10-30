@@ -24,7 +24,7 @@ Published tags remain attached to their original source commit so existing relea
 
 ## Automatic GitHub releases
 
-Pushing a new version tag such as `v0.0.3` starts the three builds and automatically publishes a GitHub release after all of them succeed. Manual builds and pull requests produce Actions artifacts only.
+Pushing a new version tag such as `v0.0.3` starts the three builds and automatically publishes a GitHub release after all of them succeed. Pushes to main, manual builds and pull requests produce Actions artifacts only. Main builds also populate reusable default-branch caches for subsequent tags.
 
 The tag must match the versions in npm, its lockfile, Tauri and both Rust packages. The workflow checks this before compilation. It downloads the Windows, Linux and Apple Silicon artifacts from that same workflow run, checks their manifests, sizes and SHA-256 hashes, and requires the Mac signature/architecture validation to have succeeded. It publishes the Windows installer and standalone EXE, Linux DEB/AppImage, Mac ARM64 DMG, and one combined `SHA256SUMS.txt`.
 
@@ -51,8 +51,20 @@ git push origin v0.0.3
 
 These are instructions for a future release. Commit synchronized versions before tagging; existing published tags keep their original source commit. Publication itself is exercised only by a matching new pushed tag; local tests use a simulated GitHub CLI and never create live releases.
 
+## Build time and shared caches
+
+The original 0.0.2 run spent 475/612/526 seconds on core tests (Linux/Windows/macOS), including compilation, and another 530/515/346 seconds on packaging, including release compilation. Platforms already ran concurrently; serial test and release compilation inside each platform accounted for most of the delay.
+
+GitHub allows a new tag to restore caches from the default branch, but not from a different tag. Desktop builds therefore run on main as well as tags. Push source changes to main ahead of the release so that its build can finish warming the caches. A main push and a tag push issued simultaneously cannot use the cache that the main run has not saved yet. Version changes can still invalidate some compiled outputs; dependency caches and compiler caches reduce that cost rather than skipping compilation checks.
+
+All three platforms use sccache with GitHub's cache backend. Rust target/registry caches are saved from main only to avoid accumulating large per-tag copies; tag and PR builds can restore them. Compilation parallelism follows the runner's available CPUs, capped at four jobs and one job per 4 GiB of memory. CI test builds retain line tables for backtraces instead of full variable/type debug information, reducing test compilation, linking and cache size. Debug assertions, the complete test suite, optimized production settings, signing and release verification remain unchanged. Compiler cache statistics are printed on every platform.
+
+The first run after these cache/configuration changes can still be slow. Actual savings depend on cache hits, dependency/toolchain changes, runner load and final linking. Compare a completed main run with a subsequent unchanged manual run on main before quoting a new build-time target. No faster-build timing has been established yet.
+
+Sources: [GitHub cache scope restrictions](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache), [sccache action](https://github.com/mozilla-actions/sccache-action), [Cargo profile debug levels](https://doc.rust-lang.org/cargo/reference/profiles.html#debug).
+
 ## Diagnostics
 
-All three platform jobs use Bash with failure propagation through log pipelines. Interface tests have a 4 GiB Node heap limit, Rust build caches are retained, and jobs have a 90-minute limit. The shared macOS workflow uses `macos-26`, three Rust build jobs, sccache, the arm64 target, deployment target 11.0 and ad-hoc signing. It builds Apple Silicon only.
+All three platform jobs use Bash with failure propagation through log pipelines. Interface tests have a 4 GiB Node heap limit, Rust build caches are retained, and jobs have a 90-minute limit. The shared macOS workflow uses `macos-26`, adaptive Rust build parallelism, sccache, the arm64 target, deployment target 11.0 and ad-hoc signing. It builds Apple Silicon only.
 
 Windows and Linux jobs upload their available interface, core and build logs as `Ochat-<runner>-logs`. The shared Mac workflow saves its core, interface, WebKit and build logs and produces `Ochat-macOS-arm64`. macOS binaries are locally signature-checked; ad-hoc signing is not notarization.

@@ -3,6 +3,8 @@ name: Desktop builds
 on:
   workflow_dispatch:
   push:
+    # Populate default-branch caches that every future release tag can restore.
+    branches: [main]
     tags: ['v*']
   pull_request:
 
@@ -34,8 +36,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     env:
-      CARGO_BUILD_JOBS: '2'
       CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      SCCACHE_GHA_ENABLED: 'true'
+      RUSTC_WRAPPER: sccache
       APPIMAGE_EXTRACT_AND_RUN: '1'
       NODE_OPTIONS: --max-old-space-size=4096
       CI: 'true'
@@ -45,12 +49,17 @@ jobs:
         with:
           node-version-file: '.node-version'
           cache: npm
+      - name: Configure compilation parallelism
+        run: |
+          node -e 'const os=require("node:os"),fs=require("node:fs"); const jobs=Math.max(1,Math.min(4,os.availableParallelism(),Math.floor(os.totalmem()/2**30/4))); fs.appendFileSync(process.env.GITHUB_ENV,`CARGO_BUILD_JOBS=${jobs}\n`); console.log(`Using ${jobs} parallel Rust compilation jobs`);'
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Check project and release versions
         env:
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
@@ -70,6 +79,9 @@ jobs:
         run: cargo test -p ochat-core --locked 2>&1 | tee core-tests.log
       - name: Build desktop bundles
         run: npm run tauri -- build --bundles ${{ matrix.bundles }} ${{ matrix.arguments }} -- --locked 2>&1 | tee desktop-build.log
+      - name: Show compiler cache stats
+        if: ${{ !cancelled() }}
+        run: sccache --show-stats
       - run: node scripts/release/collect.cjs ${{ matrix.platform }}
       - uses: actions/upload-artifact@v7
         with:
