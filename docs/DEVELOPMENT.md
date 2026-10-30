@@ -2,7 +2,7 @@
 
 ## Versioning and account compatibility
 
-The application version is **0.0.1**. This restarts the release numbering; it does not revert the implementation or reset accounts. The transport remains `ochat/5`, current invitations remain `ochat3:`, and existing encrypted profiles and backups retain their formats.
+The application version is **0.0.2**. Release numbering restarted at 0.0.1; it does not revert the implementation or reset accounts. The transport remains `ochat/5`, current invitations remain `ochat3:`, and existing encrypted profiles and backups retain their formats.
 
 Version metadata lives in `package.json`, `package-lock.json`, the workspace `Cargo.toml` and `Cargo.lock`, and `src-tauri/tauri.conf.json`. Keep these aligned when packaging.
 

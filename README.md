@@ -107,8 +107,8 @@ Build the DEB and AppImage, then run the AppImage:
 
 ```sh
 npm run tauri -- build --config src-tauri/tauri.linux.conf.json --bundles deb,appimage -- --locked
-chmod +x target/release/bundle/appimage/Ochat_0.0.1_amd64.AppImage
-APPIMAGE_EXTRACT_AND_RUN=1 ./target/release/bundle/appimage/Ochat_0.0.1_amd64.AppImage
+chmod +x target/release/bundle/appimage/Ochat_0.0.2_amd64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./target/release/bundle/appimage/Ochat_0.0.2_amd64.AppImage
 ```
 
 The DEB is in `target/release/bundle/deb/`. These artifact names assume an x86-64 Linux build.

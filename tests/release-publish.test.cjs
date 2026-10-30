@@ -2,7 +2,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {prepare,expectedFiles,hash}=require('../scripts/release/prepare.cjs');
 const {publish}=require('../scripts/release/publish.cjs');
-const {validateVersions}=require('../scripts/release/check-version.cjs');
+const {validateVersions,validateCargoLock}=require('../scripts/release/check-version.cjs');
 const VERSION='0.0.1',TAG='v0.0.1',COMMIT='a'.repeat(40);
 function fixture(t){
  const temp=fs.realpathSync(os.tmpdir()),root=fs.mkdtempSync(path.join(temp,'ochat-autorelease-test-')),input=path.join(root,'input'),output=path.join(root,'output');
@@ -65,6 +65,16 @@ test('project versions must agree across npm, locks, Tauri and both Rust package
  const versions={npm:VERSION,lock:VERSION,lockRoot:VERSION,tauri:VERSION,ochat:VERSION,'ochat-core':VERSION};assert.equal(validateVersions(versions,TAG),VERSION);
  assert.throws(()=>validateVersions(versions,'v0.0.2'),/tag/);
  for(const key of ['lock','lockRoot','tauri','ochat','ochat-core'])assert.throws(()=>validateVersions({...versions,[key]:'0.0.2'},TAG),/mismatch/);
+});
+test('a stale Cargo lock is rejected even when manifest metadata has the new version',()=>{
+ const lock='version = 4\n\n[[package]]\nname = "ochat"\nversion = "0.0.1"\n\n[[package]]\nname = "ochat-core"\nversion = "0.0.1"\n';
+ assert.doesNotThrow(()=>validateCargoLock(lock,'0.0.1'));
+ assert.throws(()=>validateCargoLock(lock,'0.0.2'),/Cargo.lock/);
+ assert.throws(()=>validateCargoLock(lock.replace('name = "ochat-core"','name = "another-package"'),'0.0.1'),/ochat-core/);
+});
+test('Cargo lock verification accepts synchronized local packages and ignores registry name collisions',()=>{
+ const lock='version = 4\r\n\r\n[[package]]\r\nname = "ochat"\r\nversion = "0.0.2"\r\n\r\n[[package]]\r\nname = "ochat-core"\r\nversion = "0.0.2"\r\n\r\n[[package]]\r\nname = "ochat-core"\r\nversion = "1.0.0"\r\nsource = "registry+https://example.invalid"\r\n';
+ assert.doesNotThrow(()=>validateCargoLock(lock,'0.0.2'));
 });
 test('publication verifies remote fingerprints before publishing a complete draft',t=>{
  const f=fixture(t),plan=f.make(),state=service(plan,{annotated:true}),result=publish(f.planFile,context(state));
