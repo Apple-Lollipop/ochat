@@ -51,6 +51,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+      - name: Check project and release versions
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: node scripts/release/check-version.cjs
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -86,4 +90,37 @@ jobs:
   macos:
     name: macOS (Apple Silicon)
     uses: ./.github/workflows/macos.yml
+  release:
+    name: Publish GitHub release
+    needs: [desktop, macos]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: '.node-version'
+      - uses: actions/download-artifact@v7
+        with:
+          name: Ochat-windows-latest
+          path: release-input/Windows
+      - uses: actions/download-artifact@v7
+        with:
+          name: Ochat-ubuntu-24.04
+          path: release-input/Linux
+      - uses: actions/download-artifact@v7
+        with:
+          name: Ochat-macOS-arm64
+          path: release-input/macOS
+      - name: Verify all platform bundles and prepare checksums
+        run: node scripts/release/prepare.cjs release-input release-upload "$RELEASE_TAG"
+      - name: Publish verified assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/release/publish.cjs release-upload/release-plan.json
 

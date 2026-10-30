@@ -41,6 +41,10 @@ jobs:
         with:
           cache-on-failure: true
       - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Check project and release versions
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: node scripts/release/check-version.cjs
       - name: Check native build tools
         run: |
           xcode-select -p
