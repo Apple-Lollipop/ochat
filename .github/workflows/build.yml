@@ -39,6 +39,7 @@ jobs:
       CARGO_INCREMENTAL: '0'
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       SCCACHE_GHA_ENABLED: 'true'
+      SCCACHE_IGNORE_SERVER_IO_ERROR: '1'
       RUSTC_WRAPPER: sccache
       APPIMAGE_EXTRACT_AND_RUN: '1'
       NODE_OPTIONS: --max-old-space-size=4096
@@ -60,6 +61,9 @@ jobs:
           cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: mozilla-actions/sccache-action@v0.0.11
+        continue-on-error: true
+      - name: Check optional compiler cache
+        run: node scripts/ci/compiler-cache.cjs
       - name: Check project and release versions
         env:
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
@@ -80,7 +84,8 @@ jobs:
       - name: Build desktop bundles
         run: npm run tauri -- build --bundles ${{ matrix.bundles }} ${{ matrix.arguments }} -- --locked 2>&1 | tee desktop-build.log
       - name: Show compiler cache stats
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.RUSTC_WRAPPER != '' }}
+        continue-on-error: true
         run: sccache --show-stats
       - run: node scripts/release/collect.cjs ${{ matrix.platform }}
       - uses: actions/upload-artifact@v7

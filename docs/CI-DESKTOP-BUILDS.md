@@ -61,6 +61,8 @@ All three platforms use sccache with GitHub's cache backend. Rust target/registr
 
 The first run after these cache/configuration changes can still be slow. Actual savings depend on cache hits, dependency/toolchain changes, runner load and final linking. Compare a completed main run with a subsequent unchanged manual run on main before quoting a new build-time target. No faster-build timing has been established yet.
 
+Compiler caching is optional: setup failures are tolerated, a bounded preflight disables the wrapper when its remote backend cannot start, and sccache's documented I/O-error fallback allows rustc to run directly if the server later becomes unavailable. Cache statistics cannot fail a job. Test and build steps retain normal failure handling. This addresses an observed macOS failure caused by GitHub cache storage returning HTTP 503/ServerBusy before rustc could report its version; raw cache stderr is suppressed by the preflight because it may contain signed storage URLs.
+
 Sources: [GitHub cache scope restrictions](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache), [sccache action](https://github.com/mozilla-actions/sccache-action), [Cargo profile debug levels](https://doc.rust-lang.org/cargo/reference/profiles.html#debug).
 
 ## Diagnostics
