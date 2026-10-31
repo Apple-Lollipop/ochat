@@ -1,6 +1,10 @@
 use super::*;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 
+const MAX_FRIENDS: usize = 128;
+const MAX_INCOMING: usize = 64;
+const NEW_REQUESTS_PER_MINUTE: usize = 20;
+
 /// Public routing information, never an account secret or a room invitation.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -152,6 +156,37 @@ pub struct DirectWork {
     pub reply: tokio::sync::oneshot::Sender<std::result::Result<Option<String>, String>>,
 }
 impl ChatNode {
+    // Caller holds contact_guard, including the transition from incoming to accepted.
+    fn ensure_friend_capacity(&self, existing: Option<&Friend>) -> Result<()> {
+        let reserved = |f: &Friend| matches!(f.status.as_str(), "accepted" | "outgoing");
+        ensure!(
+            existing.is_some_and(reserved)
+                || self.friends()?.iter().filter(|f| reserved(f)).count() < MAX_FRIENDS,
+            "Your friend list is full"
+        );
+        Ok(())
+    }
+    fn allow_new_incoming(&self) -> Result<()> {
+        ensure!(
+            self.friends()?
+                .iter()
+                .filter(|f| f.status == "incoming")
+                .count()
+                < MAX_INCOMING,
+            "The friend request inbox is full. Try again later"
+        );
+        let mut state = self.governance.lock().unwrap();
+        let now = Instant::now();
+        state
+            .new_contact_requests
+            .retain(|at| now.duration_since(*at) < Duration::from_secs(60));
+        ensure!(
+            state.new_contact_requests.len() < NEW_REQUESTS_PER_MINUTE,
+            "Too many new contact requests. Try again in one minute"
+        );
+        state.new_contact_requests.push_back(now);
+        Ok(())
+    }
     pub async fn contact_id(&self) -> Result<String> {
         ContactId {
             version: 2,
@@ -261,15 +296,7 @@ impl ChatNode {
         let friend = {
             let _guard = self.contact_guard.lock().unwrap();
             let existing = self.friend(peer).ok();
-            ensure!(
-                self.friends()?
-                    .iter()
-                    .filter(|f| f.status != "blocked")
-                    .count()
-                    < 128
-                    || existing.is_some(),
-                "Your friend list is full"
-            );
+            self.ensure_friend_capacity(existing.as_ref())?;
             let mut friend = if let Some(friend) = existing {
                 friend
             } else {
@@ -454,6 +481,7 @@ impl ChatNode {
             let _guard = self.contact_guard.lock().unwrap();
             let mut friend = self.friend(peer)?;
             if accept {
+                self.ensure_friend_capacity(Some(&friend))?;
                 ensure!(
                     friend.status == "incoming" || friend.status == "accepted",
                     "No incoming friend request to accept"
@@ -591,15 +619,12 @@ impl ChatNode {
                 if !matches!(contact, Contact::Request) {
                     ensure!(existing.is_some(), "Unsolicited friend response");
                 }
-                ensure!(
-                    self.friends()?
-                        .iter()
-                        .filter(|f| f.status != "blocked")
-                        .count()
-                        < 128
-                        || existing.is_some(),
-                    "Friend list is full"
-                );
+                // An unaccepted stranger can use only the request inbox, never
+                // the capacity reserved for accepted/explicitly added contacts.
+                let new_incoming = matches!(contact, Contact::Request)
+                    && existing.as_ref().is_none_or(|f| {
+                        !matches!(f.status.as_str(), "incoming" | "accepted" | "outgoing")
+                    });
                 let mut friend = existing.unwrap_or(Friend {
                     request_id: None,
                     remote_request_id: None,
@@ -627,6 +652,9 @@ impl ChatNode {
                             friend.remote_request_id.is_some_and(|remote| remote != id)
                         }));
                 if !dismissed && !stale_reply {
+                    if new_incoming {
+                        self.allow_new_incoming()?;
+                    }
                     match contact {
                         Contact::Request => {
                             if friend.status == "blocked" {

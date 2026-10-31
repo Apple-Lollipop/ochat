@@ -18,8 +18,23 @@ pub struct Target {
 #[derive(Default)]
 pub struct Viewer {
     target: SyncMutex<Option<Target>>,
+    transport: SyncMutex<Option<tauri::ipc::Channel<serde_json::Value>>>,
 }
 impl Viewer {
+    pub fn allows_keyframe(
+        &self,
+        room: Uuid,
+        peer: &str,
+        control: &ochat_core::visual::VisualControl,
+    ) -> bool {
+        self.target.lock().unwrap().as_ref().is_some_and(|t| {
+            t.room == room
+                && t.peer == peer
+                && t.media == control.media
+                && t.session == control.session
+                && t.kind == control.kind
+        })
+    }
     #[cfg(target_os = "linux")]
     pub fn displays(&self, room: Uuid, peer: &str, kind: VisualKind, media: Uuid) -> bool {
         self.target
@@ -30,9 +45,11 @@ impl Viewer {
     }
     pub fn destroyed(&self) {
         self.target.lock().unwrap().take();
+        self.transport.lock().unwrap().take();
     }
     pub fn close(&self, app: &tauri::AppHandle) {
         self.target.lock().unwrap().take();
+        self.transport.lock().unwrap().take();
         if let Some(window) = app.get_webview_window(LABEL) {
             let _ = window.close();
         }
@@ -52,7 +69,7 @@ impl Viewer {
             self.close(app);
         }
     }
-    pub fn route(&self, app: &tauri::AppHandle, event: &Event) {
+    pub fn route(&self, _app: &tauri::AppHandle, event: &Event) {
         let source = match event {
             Event::VisualFrame {
                 room,
@@ -90,11 +107,11 @@ impl Viewer {
             }
             target.clone()
         };
-        let _ = app.emit_to(
-            LABEL,
-            "visual-viewer-frame",
-            serde_json::json!({"token":target.token,"packet":event}),
-        );
+        if let Some(channel) = self.transport.lock().unwrap().as_ref() {
+            let _ = channel.send(
+                serde_json::json!({"kind":"frame","payload":{"token":target.token,"packet":event}}),
+            );
+        }
     }
     pub fn event(&self, app: &tauri::AppHandle, event: &Event, node: &Arc<ChatNode>) {
         match event {
@@ -207,7 +224,9 @@ pub async fn open_visual_viewer(
     *state.effects.viewer.target.lock().unwrap() = Some(target.clone());
     if let Some(window) = app.get_webview_window(LABEL) {
         window.set_title(&title).map_err(error)?;
-        let _ = window.emit("visual-viewer-status", target);
+        if let Some(channel) = state.effects.viewer.transport.lock().unwrap().as_ref() {
+            let _ = channel.send(serde_json::json!({"kind":"status","payload":target}));
+        }
         window.show().map_err(error)?;
         window.set_focus().map_err(error)?;
     } else {
@@ -234,24 +253,59 @@ pub async fn open_visual_viewer(
 pub async fn visual_viewer_status(
     window: tauri::WebviewWindow,
     state: State<'_, DesktopState>,
+    channel: tauri::ipc::Channel<serde_json::Value>,
 ) -> Reply<Target> {
     if window.label() != LABEL {
         return Err("This command belongs to the video viewer".into());
     }
     node(&state).await?;
-    state
-        .effects
-        .viewer
-        .target
-        .lock()
-        .unwrap()
+    let selected = state.effects.viewer.target.lock().unwrap();
+    let target = selected
         .clone()
-        .ok_or_else(|| "The video viewer is no longer active".into())
+        .ok_or_else(|| "The video viewer is no longer active".to_string())?;
+    *state.effects.viewer.transport.lock().unwrap() = Some(channel);
+    Ok(target)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn viewer_keyframes_are_confined_to_the_selected_peer_and_session() {
+        let viewer = Viewer::default();
+        let room = Uuid::new_v4();
+        let media = Uuid::new_v4();
+        let session = Uuid::new_v4();
+        let control = ochat_core::visual::VisualControl {
+            media,
+            session,
+            kind: VisualKind::Camera,
+            active: true,
+            connection: None,
+            parent: None,
+            profile: Default::default(),
+        };
+        assert!(!viewer.allows_keyframe(room, "peer", &control));
+        *viewer.target.lock().unwrap() = Some(Target {
+            room,
+            media,
+            peer: "peer".into(),
+            kind: VisualKind::Camera,
+            session,
+            token: Uuid::new_v4(),
+            title: String::new(),
+            theme: "dark".into(),
+        });
+        assert!(viewer.allows_keyframe(room, "peer", &control));
+        assert!(!viewer.allows_keyframe(Uuid::new_v4(), "peer", &control));
+        assert!(!viewer.allows_keyframe(room, "other", &control));
+        let mut stale = control.clone();
+        stale.session = Uuid::new_v4();
+        assert!(!viewer.allows_keyframe(room, "peer", &stale));
+        stale = control;
+        stale.media = Uuid::new_v4();
+        assert!(!viewer.allows_keyframe(room, "peer", &stale));
+    }
     #[test]
     fn detached_viewer_targets_the_voice_channel_and_preserves_private_calls() {
         let room = Uuid::new_v4();

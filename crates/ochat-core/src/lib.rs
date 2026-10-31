@@ -9,6 +9,7 @@ pub mod discord_webhook;
 pub mod emoji;
 pub mod governance;
 pub mod hub;
+mod image_privacy;
 pub mod inline_images;
 pub mod links;
 pub mod loopback;

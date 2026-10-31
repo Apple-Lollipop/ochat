@@ -301,11 +301,17 @@ pub async fn watch_visual(
 }
 #[tauri::command]
 pub async fn request_visual_keyframe(
+    webview: tauri::Webview,
     state: State<'_, DesktopState>,
     room: Uuid,
     peer: String,
     control: VisualControl,
 ) -> Reply<()> {
+    if webview.label() == "visual-viewer"
+        && !state.effects.viewer.allows_keyframe(room, &peer, &control)
+    {
+        return Err("This stream is not selected in the video viewer".into());
+    }
     node(&state)
         .await?
         .request_visual_keyframe(room, &peer, control)

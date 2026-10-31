@@ -29,6 +29,24 @@ pub struct EmojiEdit {
 }
 pub type EmojiBank = BTreeMap<Uuid, EmojiEdit>;
 
+// Legacy counters remain valid. Reject astronomical peer-controlled clocks,
+// while allowing a day of clock skew and 1024 edits per millisecond. The ceiling
+// advances, so an accepted boundary value cannot permanently exhaust the clock.
+fn revision_limit(at: u64) -> u64 {
+    at.saturating_add(24 * 60 * 60 * 1000).saturating_mul(1024)
+}
+pub(crate) fn next_revision_at(bank: &EmojiBank, at: u64) -> Option<u64> {
+    let limit = revision_limit(at);
+    let next = bank
+        .values()
+        .filter(|e| e.revision <= limit)
+        .map(|e| e.revision)
+        .max()
+        .unwrap_or(0)
+        .checked_add(1)?;
+    (next <= limit).then_some(next)
+}
+
 pub fn valid_name(name: &str) -> bool {
     (2..=32).contains(&name.len())
         && name
@@ -53,7 +71,7 @@ impl EmojiEdit {
             valid_name(&self.name)
                 && valid_hash(&self.hash)
                 && valid_hash(&self.actor)
-                && self.revision < u64::MAX / 2,
+                && self.revision <= revision_limit(crate::network::now()),
             "Invalid room emoji update"
         );
         Ok(())
@@ -212,6 +230,29 @@ pub fn visible(bank: &EmojiBank) -> Vec<EmojiEdit> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn hostile_revision_cannot_exhaust_the_shared_clock_and_boundary_moves() {
+        let mut bank = EmojiBank::new();
+        let edit = EmojiEdit {
+            id: Uuid::new_v4(),
+            name: "audit_test".into(),
+            hash: "a".repeat(64),
+            actor: "b".repeat(64),
+            revision: u64::MAX / 2 - 1,
+            removed: false,
+        };
+        assert!(merge(&mut bank, edit.clone()).is_err());
+        assert!(bank.is_empty());
+        let mut legacy = edit.clone();
+        legacy.revision = 1234;
+        assert!(merge(&mut bank, legacy).unwrap());
+        assert_eq!(next_revision_at(&bank, 100), Some(1235));
+        let mut boundary = edit;
+        boundary.revision = revision_limit(100);
+        bank.insert(boundary.id, boundary);
+        assert_eq!(next_revision_at(&bank, 100), None);
+        assert_eq!(next_revision_at(&bank, 101), Some(revision_limit(100) + 1));
+    }
     #[test]
     fn room_edits_converge_and_deletion_wins_old_replays() {
         let first = EmojiEdit {

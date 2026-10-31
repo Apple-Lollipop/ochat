@@ -28,6 +28,11 @@ pub struct ImageAsset {
     pub data: String,
 }
 impl ImageAsset {
+    /// Normalize only new sends. Existing content-addressed history keeps its
+    /// original identity, so old messages, favorites and backups remain readable.
+    pub fn prepare_outgoing(bytes: &[u8]) -> Result<Self> {
+        Self::from_bytes(&crate::image_privacy::prepare(bytes)?)
+    }
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         ensure!(
             !bytes.is_empty() && bytes.len() <= MAX_IMAGE,

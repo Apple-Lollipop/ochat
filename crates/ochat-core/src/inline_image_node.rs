@@ -77,7 +77,8 @@ impl ChatNode {
                 "Choose a text channel first"
             );
         }
-        let asset = tokio::task::spawn_blocking(move || ImageAsset::from_bytes(&bytes)).await??;
+        let asset =
+            tokio::task::spawn_blocking(move || ImageAsset::prepare_outgoing(&bytes)).await??;
         let this = self.clone();
         let copy = asset.clone();
         tokio::task::spawn_blocking(move || this.store_inline(room, channel, &copy, false))

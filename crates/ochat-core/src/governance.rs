@@ -506,6 +506,7 @@ pub(crate) struct State {
     pub tickets: HashMap<Uuid, IssuedTicket>,
     pub blocked: HashSet<String>,
     pub rate: HashMap<String, (std::time::Instant, u32)>,
+    pub new_contact_requests: std::collections::VecDeque<std::time::Instant>,
 }
 #[cfg(test)]
 mod tests {

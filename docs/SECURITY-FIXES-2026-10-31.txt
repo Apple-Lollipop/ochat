@@ -1,0 +1,139 @@
+Ochat — Correctifs de sécurité du 31 octobre 2026
+Version locale : 0.0.4 — protocole : ochat/5
+Base auditée : 84a71f1209f825f6a0a6f79a1436c2cafedbc84a
+
+Périmètre
+Les cinq constats A01 à A05 du rapport SECURITY-AUDIT-2026-10-31.html
+ont reçu des correctifs locaux. Aucun changement d'algorithme de chiffrement,
+de version du protocole ou de format du coffre n'est introduit.
+Les tests utilisent des données synthétiques et des comptes temporaires.
+Le profil réel et le processus Ochat déjà ouvert ne sont pas utilisés.
+
+A01 — Métadonnées sensibles dans les images du chat
+Avant : une photo envoyée comme image pouvait transporter ses coordonnées GPS,
+sa description EXIF et d'autres métadonnées privées.
+Correctif : normalisation centrale avant calcul de l'empreinte et envoi des
+images JPEG, PNG, GIF et WebP. Suppression des métadonnées descriptives
+EXIF/GPS, XMP, IPTC et commentaires, selon le format. Les pixels compressés
+ne sont pas réencodés. Seuls l'orientation minimale et les éléments nécessaires
+au rendu et à l'animation sont conservés, notamment les profils ICC.
+Les images du disque, du presse-papiers, de Risibank et des favoris passent
+par cette même entrée. La lecture des anciennes images conserve leurs
+empreintes d'origine pour ne pas casser l'historique et les sauvegardes.
+Tests : GPS synthétique, orientation, égalité des pixels décodés, animation,
+durée des trames, boucles et conteneurs tronqués. Transfert entre deux pairs
+locaux et compatibilité avec les anciennes empreintes.
+Limites : les images déjà envoyées ne sont pas effacées chez leurs destinataires.
+Le transfert explicite d'un fichier conserve volontairement son contenu original.
+Les profils de rendu et la stéganographie ne constituent pas un anonymat garanti.
+
+A02 — Dépassement des budgets d'animation avec APNG
+Avant : un PNG animé contournait les limites cumulatives appliquées aux GIF
+et WebP, avec un risque de consommation excessive de ressources.
+Correctif : validation des blocs APNG et décodage borné des trames. Maximum
+300 trames et 32 millions de pixels cumulés ; limite mémoire du décodeur
+maintenue à 64 Mio. Vérification de la cohérence entre les trames annoncées
+et les blocs présents. Prise en compte d'une image de repli distincte.
+Tests : animations ordinaires conservées, 300 petites trames acceptées,
+301 rejetées, budget de pixels dépassé rejeté, compteur mensonger rejeté.
+La validation s'applique à l'envoi et à la réception des images intégrées.
+Une ancienne animation dépassant ces budgets est également refusée : la
+compatibilité des empreintes ne désactive pas les contrôles de ressources.
+
+A03 — Isolation native de la fenêtre vidéo détachée
+Avant : la fenêtre secondaire pouvait appeler les commandes métier exposées
+au frontend. Un script compromis dans cette fenêtre aurait eu trop de droits.
+Correctif : contrôle central du nom natif de la fenêtre et de son origine,
+avant désérialisation des arguments des commandes applicatives. La fenêtre
+principale garde les 149 commandes existantes. Le viewer ne dispose que de
+son état sélectionné et de la demande de trame clé pour ce flux précis.
+Les autres fenêtres et origines sont refusées par défaut.
+Tous les droits sur le bus général d'événements sont retirés au viewer.
+Les images et changements de cible utilisent un canal IPC privé lié à la
+fenêtre, avec filtrage du salon, du pair, de la session, du média et du jeton.
+Les commandes usuelles du viewer (fermeture, premier plan, plein écran)
+restent disponibles. Le suivi du redimensionnement utilise les événements DOM.
+Tests : inventaire des 149 commandes, origines étrangères, commande future,
+absence de droits d'événements, portée des trames clés, anciennes trames,
+changement de cible, fin de partage et commandes de plein écran.
+Limite : cette frontière réduit les conséquences d'une compromission du viewer ;
+elle ne prétend pas rendre un système d'exploitation compromis fiable.
+
+A04 — Saturation de la liste d'amis par des identités inconnues
+Avant : les demandes entrantes non acceptées consommaient la capacité réservée
+aux amis, y compris lorsqu'un attaquant créait plusieurs identités.
+Correctif : quotas distincts pour les amis/demandes sortantes et les demandes
+entrantes (128 et 64). Limite globale de 20 nouvelles identités par minute,
+en complément de la limite existante par pair. Les relations déjà connues
+conservent leurs parcours de présence et de nouvelle tentative.
+Les anciennes demandes stockées ne sont pas supprimées arbitrairement.
+Tests : 21 identités locales distinctes, refus de la 21e dans la fenêtre de
+limitation, ajout et acceptation explicites toujours possibles ; même parcours
+avec une ancienne boîte contenant déjà 128 demandes non acceptées.
+Limite : il s'agit de bornes de ressources, pas d'une protection absolue contre
+le déni de service. Une demande légitime peut devoir être renvoyée après délai.
+
+A05 — Empoisonnement du compteur de révision des emojis partagés
+Avant : une révision distante astronomique pouvait rendre impossible la
+modification locale suivante et conserver ce blocage après redémarrage.
+Correctif : plafond de révision évolutif avec le temps, compatible avec les
+compteurs historiques. Les mises à jour au-delà du plafond sont rejetées.
+Les entrées invalides déjà enregistrées sont filtrées lors du chargement et
+de la fusion. Les entrées saines et les images historiques sont conservées.
+Une valeur à la limite acceptée ne provoque plus d'épuisement permanent.
+Tests : compteur astronomique rejeté, compteur historique accepté, progression
+à la frontière, message malveillant reçu d'un pair admis et chargement d'une
+banque empoisonnée depuis le coffre chiffré. Ajout, renommage, suppression et
+persistance d'une banque réparée sont vérifiés.
+
+Validation exécutée sur Windows
+- Suite complète ochat-core : 181 réussis, 0 échec, 7 ignorés.
+- Nouvelle passe de la bibliothèque finale : 122 réussis, 0 échec, 5 ignorés.
+- Nouvelle passe des 4 intégrations de sécurité : 4 réussis, 0 échec.
+- Tests natifs de l'application : 12 réussis, 0 échec.
+- Tests JavaScript de l'interface : 247 réussis, 0 échec.
+- cargo fmt --all -- --check : réussi ; git diff --check : réussi.
+Les passes ciblées recouvrent une partie de la suite complète : ces nombres
+ne doivent pas être additionnés comme s'il s'agissait de tests distincts.
+Les tests ignorés ne sont pas comptés comme des succès.
+Journaux : releases/reports/fixes-2026-10-31-*.log.
+
+Limites de la validation
+La première livraison concernait uniquement Windows. La validation Linux
+complémentaire est détaillée ci-dessous. Aucun nouvel essai acoustique réel
+ni test manuel de partage entre appareils n'est inclus.
+Les deux avis Rust et six avertissements de maintenance recensés dans l'audit
+initial restent documentés dans ce rapport d'origine ; ces cinq correctifs
+ne constituent pas une mise à niveau générale des dépendances.
+Aucun déchiffrement de paquets ou MITM n'a été démontré dans l'audit initial.
+Ces changements ne justifient pas de qualifier l'application d'inviolable.
+
+Livrable
+La compilation et l'empreinte du seul exécutable Windows sont consignées dans
+releases/reports/SECURITY-FIXES-2026-10-31.json après validation du build.
+Cette première livraison ne comprenait aucun installateur Windows ni publication.
+
+Complément Linux et GitHub — même version 0.0.4
+Les paquets Ochat_0.0.4_amd64.deb et Ochat_0.0.4_amd64.AppImage sont construits
+dans l'environnement Debian 12 dédié sous WSL2, avec le même code corrigé.
+Les empreintes SHA-256 sont vérifiées. Le paquet Debian annonce bien la version
+0.0.4 et l'architecture amd64 ; son exécutable ne présente aucune bibliothèque
+manquante lors de la vérification ldd.
+
+Validation Linux exécutée :
+- Bibliothèque Rust : 122 réussis, 0 échec, 5 ignorés.
+- Intégrations des correctifs de sécurité : 4 réussis, 0 échec.
+- Tests natifs : 10 réussis, 0 échec.
+- Interface JavaScript : 247 réussis, 0 échec.
+- Lancement de l'AppImage sous X11/Xvfb avec compte système de test dédié et
+  répertoires de profil neufs : réussi ; écran de création de compte inspecté.
+
+Les journaux et la capture restent dans releases/reports. Les avertissements
+d'imports et de fonctions inutilisés préexistants restent présents.
+Cette validation ne remplace pas les essais Wayland et audio/vidéo physiques.
+Aucun build macOS local n'est exécuté.
+
+Le push concerne la branche main, sans déplacer le tag v0.0.4 ni remplacer la
+release existante. Les builds GitHub configurés pour main seront déclenchés
+par ce push ; leur résultat ne fait pas partie de la validation locale ci-dessus.
+Les numéros de version, le protocole et les formats de stockage sont conservés.

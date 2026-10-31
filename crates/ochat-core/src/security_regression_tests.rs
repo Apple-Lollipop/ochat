@@ -1,6 +1,52 @@
 //! Negative tests exercise the same admission and wire paths used by live peers.
 use super::*;
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn admitted_peer_cannot_poison_the_emoji_clock_through_control_frames() {
+    let owner = ChatNode::start("Owner", false).await.unwrap();
+    let peer = ChatNode::start("Member", false).await.unwrap();
+    peer.join(&owner.create_room("Emoji protection", 0).await.unwrap())
+        .await
+        .unwrap();
+    let room = owner.snapshot().room.unwrap().id;
+    let bad = crate::emoji::EmojiEdit {
+        id: Uuid::new_v4(),
+        name: "hostile".into(),
+        hash: "a".repeat(64),
+        actor: peer.id(),
+        revision: u64::MAX / 2 - 1,
+        removed: false,
+    };
+    assert!(
+        owner
+            .handle_wire(
+                room,
+                &peer.id(),
+                Wire::EmojiChanges { changes: vec![bad] },
+                &mut HashSet::new()
+            )
+            .is_err()
+    );
+    assert!(owner.room_emojis(room).is_empty());
+    let mut png = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::new_rgba8(8, 8)
+        .write_to(&mut png, image::ImageFormat::Png)
+        .unwrap();
+    owner
+        .edit_emoji(None, "healthy", Some(png.into_inner()), false)
+        .await
+        .unwrap();
+    timeout(Duration::from_secs(5), async {
+        while peer.room_emojis(room).is_empty() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(owner.room_emojis(room)[0].name, "healthy");
+    peer.close().await;
+    owner.close().await;
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn unapproved_known_member_and_introduction_do_not_bypass_policy() {
     let owner = ChatNode::start("Owner", false).await.unwrap();
     let admitted = ChatNode::start("Member", false).await.unwrap();

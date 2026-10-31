@@ -39,3 +39,8 @@ test('native resize during a macOS fullscreen transition does not exit early and
  full=true;await resize();full=false;await resize();
  assert.equal(w.OchatFullscreen.active(),false);assert.equal(target.classList.contains('ochat-fullscreen'),false);assert.equal(unsubscribed,true);
 });
+
+test('the private viewer uses DOM resize rather than the privileged general event bus',async t=>{
+ let full=false;const w=await setup(t,{isFullscreen:async()=>full,setFullscreen:async value=>{full=value;},onResized:()=>{throw Error('Event bus is intentionally unavailable');}});w.document.documentElement.dataset.privateViewer='true';
+ const target=w.document.getElementById('video');await w.OchatFullscreen.toggle(target);assert.equal(full,true);full=false;w.dispatchEvent(new w.Event('resize'));await new Promise(resolve=>setTimeout(resolve,0));assert.equal(w.OchatFullscreen.active(),false);
+});

@@ -32,14 +32,16 @@
         current.seenFullscreen=await current.native.isFullscreen();
         target.classList.add('ochat-fullscreen');
         const close=document.createElement('button');close.type='button';close.className='fullscreen-close';close.textContent='Exit fullscreen';close.onclick=()=>exit().catch(report);document.body.append(close);current.close=close;close.focus({preventScroll:true});
-        if(current.native.onResized)current.unlisten=await current.native.onResized(async()=>{
+        const resized=async()=>{
           if(busy || session!==current)return;
           try{
             const full=await current.native.isFullscreen();
             if(full)current.seenFullscreen=true;
             else if(current.seenFullscreen)cleanup(current);
           }catch{/* Window may already be closing. */}
-        });
+        };
+        if(current.native.onResized && document.documentElement.dataset.privateViewer!=='true')current.unlisten=await current.native.onResized(resized);
+        else { window.addEventListener('resize',resized);current.unlisten=()=>window.removeEventListener('resize',resized); }
       }else{
         if(!target.requestFullscreen)throw Error('Fullscreen is unavailable. Use Pop out to resize the video.');
         // Invoke immediately in the original click, before any awaited operation.

@@ -200,6 +200,68 @@ fn validated_image(bytes: &[u8]) -> Result<String> {
 pub(crate) fn validated_inline_image(bytes: &[u8]) -> Result<String> {
     validated_image_limit(bytes, 16384)
 }
+fn validate_png_animation(bytes: &[u8], width: u32, height: u32) -> Result<()> {
+    // Do not rely only on the decoder's declared frame count: it may stop
+    // iterating before extra frame chunks. Bound the actual container too.
+    let mut pos = 8;
+    let mut declared = None;
+    let mut frames = 0u32;
+    let mut image_data = false;
+    let mut fallback_image = false;
+    while pos < bytes.len() {
+        ensure!(bytes.len() - pos >= 12, "Truncated PNG chunk");
+        let len = u32::from_be_bytes(bytes[pos..pos + 4].try_into()?) as usize;
+        ensure!(len <= bytes.len() - pos - 12, "Invalid PNG chunk length");
+        let kind = &bytes[pos + 4..pos + 8];
+        match kind {
+            b"acTL" => {
+                ensure!(
+                    len == 8 && declared.is_none() && !image_data,
+                    "Invalid animation control"
+                );
+                let count = u32::from_be_bytes(bytes[pos + 8..pos + 12].try_into()?);
+                ensure!(
+                    count > 0 && count <= 300,
+                    "This animation is too large to preview"
+                );
+                declared = Some(count);
+            }
+            b"fcTL" => {
+                ensure!(
+                    declared.is_some() && len == 26,
+                    "Invalid animation frame control"
+                );
+                frames += 1;
+                ensure!(
+                    frames <= 300
+                        && u64::from(width)
+                            * u64::from(height)
+                            * u64::from(frames + u32::from(fallback_image))
+                            <= 32_000_000,
+                    "This animation is too large to preview"
+                );
+            }
+            b"IDAT" => {
+                if !image_data {
+                    fallback_image = declared.is_some() && frames == 0;
+                }
+                image_data = true;
+            }
+            b"fdAT" => ensure!(
+                declared.is_some() && frames > 0,
+                "Invalid animation frame data"
+            ),
+            b"IEND" => break,
+            _ => {}
+        }
+        pos += len + 12;
+    }
+    ensure!(
+        declared.is_none_or(|count| count == frames),
+        "Invalid animation frame count"
+    );
+    Ok(())
+}
 fn validated_image_limit(bytes: &[u8], dimension: u32) -> Result<String> {
     use image::{AnimationDecoder, ImageDecoder, ImageFormat};
     let format = image::guess_format(bytes)?;
@@ -247,6 +309,25 @@ fn validated_image_limit(bytes: &[u8], dimension: u32) -> Result<String> {
                 index < 300 && pixels <= 32_000_000,
                 "This animation is too large to preview"
             );
+        }
+    } else if format == ImageFormat::Png {
+        validate_png_animation(bytes, width, height)?;
+        let mut decoder = image::codecs::png::PngDecoder::new(Cursor::new(bytes))?;
+        decoder.set_limits(limits.clone())?;
+        if decoder.is_apng()? {
+            let mut pixels = 0u64;
+            for (index, frame) in decoder.apng()?.into_frames().enumerate() {
+                let frame = frame?;
+                pixels += u64::from(frame.buffer().width()) * u64::from(frame.buffer().height());
+                ensure!(
+                    index < 300 && pixels <= 32_000_000,
+                    "This animation is too large to preview"
+                );
+            }
+        } else {
+            let mut reader = image::ImageReader::with_format(Cursor::new(bytes), format);
+            reader.limits(limits);
+            reader.decode()?;
         }
     } else {
         let mut reader = image::ImageReader::with_format(Cursor::new(bytes), format);

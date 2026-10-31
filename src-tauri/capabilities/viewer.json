@@ -6,7 +6,6 @@
     "visual-viewer"
   ],
   "permissions": [
-    "core:event:default",
     "core:window:allow-close",
     "core:window:allow-set-always-on-top",
     "core:window:allow-is-fullscreen",

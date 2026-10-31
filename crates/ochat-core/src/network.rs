@@ -4232,15 +4232,16 @@ impl ChatNode {
     }
     fn bank(&self, room: Uuid) -> EmojiBank {
         let mut banks = self.banks.lock().unwrap();
-        banks
-            .entry(room)
-            .or_insert_with(|| {
-                self.vault
-                    .as_ref()
-                    .and_then(|v| v.get(&format!("emojis/bank/{room}")).ok().flatten())
-                    .unwrap_or_default()
-            })
-            .clone()
+        let bank = banks.entry(room).or_insert_with(|| {
+            self.vault
+                .as_ref()
+                .and_then(|v| v.get(&format!("emojis/bank/{room}")).ok().flatten())
+                .unwrap_or_default()
+        });
+        // Repair cached/legacy poisoned banks too; referenced image assets and
+        // message history are independent and remain available.
+        bank.retain(|_, edit| edit.validate().is_ok());
+        bank.clone()
     }
     pub fn room_emojis(&self, room: Uuid) -> Vec<EmojiEdit> {
         emoji::visible(&self.bank(room))
@@ -4264,6 +4265,7 @@ impl ChatNode {
                 .and_then(|v| v.get(&format!("emojis/bank/{room}")).ok().flatten())
                 .unwrap_or_default()
         });
+        bank.retain(|_, edit| edit.validate().is_ok());
         if emoji::merge(bank, edit)? {
             if let Some(vault) = &self.vault {
                 vault.put(&format!("emojis/bank/{room}"), bank)?;
@@ -4313,17 +4315,20 @@ impl ChatNode {
                 .hash
                 .clone()
         };
+        let revision = loop {
+            if let Some(revision) = emoji::next_revision_at(&bank, now()) {
+                break revision;
+            }
+            // Only an edit at the exact moving ceiling needs the next tick.
+            // Never spin or reject every future edit due to a remote counter.
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        };
         let edit = EmojiEdit {
             id: id.unwrap_or_else(Uuid::new_v4),
             name: name.into(),
             hash,
             removed,
-            revision: bank
-                .values()
-                .map(|e| e.revision)
-                .max()
-                .unwrap_or(0)
-                .saturating_add(1),
+            revision,
             actor: self.id(),
         };
         self.merge_emoji(room, edit.clone())?;
@@ -4986,7 +4991,7 @@ fn received_message_time(timestamp: Option<u64>, received: u64) -> u64 {
         .filter(|&time| time > 0 && time <= received.saturating_add(5 * 60 * 1000))
         .unwrap_or(received)
 }
-fn now() -> u64 {
+pub(crate) fn now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
